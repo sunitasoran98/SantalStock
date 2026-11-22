@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
-import { BASE_SITE_CONFIG, DEFAULT_SITE_CONFIG, SEED_ASSETS } from './src/data/defaults';
+import { DEFAULT_SITE_CONFIG, SEED_ASSETS } from './src/data/defaults';
 import {
   buildLiveSnapshotPayload,
   fetchLatestGitHubCommit,
@@ -636,7 +636,7 @@ async function startServer() {
   app.post('/api/cms/reset', (req, res) => {
     const u = getAuthUser(req);
     if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Admin access required.' });
-    DB.siteConfig = structuredClone(BASE_SITE_CONFIG);
+    DB.siteConfig = structuredClone(DEFAULT_SITE_CONFIG);
     saveDb(DB);
     triggerAutoGitHubSync('CMS reset to defaults');
     res.json({ siteConfig: DB.siteConfig });

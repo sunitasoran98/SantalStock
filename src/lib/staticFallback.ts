@@ -1,4 +1,4 @@
-import { BASE_SITE_CONFIG, DEFAULT_SITE_CONFIG, SEED_ASSETS } from '../data/defaults';
+import { DEFAULT_SITE_CONFIG, SEED_ASSETS } from '../data/defaults';
 import {
   buildLiveSnapshotPayload,
   CLOUDFLARE_WORKFLOW_YML,
@@ -469,7 +469,7 @@ export async function handleStaticFallback<T>(
   if (method === 'POST' && pathname === '/api/cms/reset') {
     const u = getAuth();
     if (!u || u.role !== 'admin') throw new Error('Admin access required.');
-    db.siteConfig = structuredClone(BASE_SITE_CONFIG);
+    db.siteConfig = structuredClone(DEFAULT_SITE_CONFIG);
     saveLocalDb(db);
     return { siteConfig: db.siteConfig } as T;
   }

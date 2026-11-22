@@ -1,4 +1,4 @@
-import { BASE_SITE_CONFIG, DEFAULT_SITE_CONFIG, SEED_ASSETS } from '../../src/data/defaults';
+import { DEFAULT_SITE_CONFIG, SEED_ASSETS } from '../../src/data/defaults';
 import {
   buildLiveSnapshotPayload,
   CLOUDFLARE_WORKFLOW_YML,
@@ -669,7 +669,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
   if (method === 'POST' && pathname === '/api/cms/reset') {
     const u = getAuthUser(request, db);
     if (!u || u.role !== 'admin') return json({ error: 'Admin access required.' }, 403);
-    db.siteConfig = structuredClone(BASE_SITE_CONFIG);
+    db.siteConfig = structuredClone(DEFAULT_SITE_CONFIG);
     await saveDb(env, db);
     await maybeAutoSyncGitHub(env, db, 'CMS reset to defaults');
     return json({ siteConfig: db.siteConfig });
