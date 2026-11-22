@@ -1,0 +1,6 @@
+{
+  "name": "SantalStock",
+  "description": "SantalStock – Royalty-Free and Editorial stock photos marketplace with real email account authentication, affordable pricing, and live visual Admin Mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

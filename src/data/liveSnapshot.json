@@ -1,0 +1,541 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-22T02:43:31.054Z",
+  "siteConfig": {
+    "brand": {
+      "logoPart1": {
+        "text": "SANTAL",
+        "color": "#d6262f"
+      },
+      "logoPart2": {
+        "text": "STOCK",
+        "color": "#0f766e"
+      },
+      "heroAbbr": [
+        {
+          "text": "S",
+          "color": "#d6262f"
+        },
+        {
+          "text": "S",
+          "color": "#2563eb"
+        },
+        {
+          "text": "P",
+          "color": "#059669"
+        }
+      ],
+      "heroDividerColor": "#f59e0b",
+      "heroFull": [
+        {
+          "text": "Santal",
+          "color": "#ea580c"
+        },
+        {
+          "text": "Stock",
+          "color": "#7c3aed"
+        },
+        {
+          "text": "Photos",
+          "color": "#0284c7"
+        }
+      ],
+      "searchBtnBg": "#ea580c",
+      "searchBtnIcon": "#ffffff",
+      "searchPlaceholderCustom": ""
+    },
+    "hero": {
+      "headingCustom": "",
+      "subtitleCustom": "",
+      "chips": [
+        {
+          "id": "c1",
+          "label": "village",
+          "href": "#/search?q=village"
+        },
+        {
+          "id": "c2",
+          "label": "festival",
+          "href": "#/search?q=festival"
+        },
+        {
+          "id": "c3",
+          "label": "forest",
+          "href": "#/search?q=forest"
+        },
+        {
+          "id": "c4",
+          "label": "people",
+          "href": "#/search?q=people"
+        },
+        {
+          "id": "c5",
+          "label": "food",
+          "href": "#/search?q=food"
+        },
+        {
+          "id": "c6",
+          "label": "travel",
+          "href": "#/search?q=travel"
+        },
+        {
+          "id": "c7",
+          "label": "✓ Royalty-Free",
+          "href": "#/search?lic=rf"
+        },
+        {
+          "id": "c8",
+          "label": "📰 Editorial",
+          "href": "#/search?lic=editorial"
+        }
+      ]
+    },
+    "subnav": [
+      {
+        "id": "n1",
+        "label": "Browse",
+        "href": "#/search",
+        "i18nKey": "browse"
+      },
+      {
+        "id": "n2",
+        "label": "Pricing",
+        "href": "#/pricing",
+        "i18nKey": "pricing"
+      },
+      {
+        "id": "n3",
+        "label": "Licenses",
+        "href": "#/licenses",
+        "i18nKey": "licenses"
+      },
+      {
+        "id": "n4",
+        "label": "Sell",
+        "href": "#/contributor",
+        "i18nKey": "sell"
+      },
+      {
+        "id": "n5",
+        "label": "Verify License",
+        "href": "#/verify",
+        "i18nKey": "verify"
+      }
+    ],
+    "featureCards": [
+      {
+        "id": "fc-rf",
+        "badge": "Royalty-Free",
+        "badgeType": "rf",
+        "title": "Buy once, use again and again",
+        "description": "Ads, websites, social media, packaging, print. Standard and Extended licenses starting at just ₹19, with model/property releases.",
+        "buttonText": "See Royalty-Free",
+        "buttonLink": "#/search?lic=rf",
+        "buttonStyle": "primary"
+      },
+      {
+        "id": "fc-ed",
+        "badge": "Editorial",
+        "badgeType": "ed",
+        "title": "For news, blogs and documentaries",
+        "description": "Real events, people and places. Editorial / non-commercial use starting at just ₹15, with caption, date and location.",
+        "buttonText": "See Editorial",
+        "buttonLink": "#/search?lic=editorial",
+        "buttonStyle": "alt"
+      }
+    ],
+    "customSections": [],
+    "ctaBanner": {
+      "visible": true,
+      "titleCustom": "",
+      "subtitleCustom": "",
+      "buttonTextCustom": "",
+      "buttonLink": "#/contributor",
+      "bgColor": "#011f43",
+      "textColor": "#ffffff"
+    },
+    "pricing": {
+      "currency": "₹",
+      "gst": 0.18,
+      "payoutMin": 100,
+      "royalty": {
+        "rf": 0.4,
+        "editorial": 0.3
+      },
+      "sizes": [
+        {
+          "k": "S",
+          "n": "Small",
+          "px": 800
+        },
+        {
+          "k": "M",
+          "n": "Medium",
+          "px": 1600
+        },
+        {
+          "k": "L",
+          "n": "Large / Original",
+          "px": 0
+        }
+      ],
+      "matrix": {
+        "std": {
+          "S": 19,
+          "M": 29,
+          "L": 49
+        },
+        "ext": {
+          "S": 79,
+          "M": 129,
+          "L": 199
+        },
+        "ed": {
+          "S": 15,
+          "M": 25,
+          "L": 39
+        }
+      },
+      "licMeta": {
+        "std": {
+          "n": "Royalty-Free Standard",
+          "cr": 1,
+          "type": "rf",
+          "desc": "Web, social media, ads, presentations, print up to 5,00,000 copies."
+        },
+        "ext": {
+          "n": "Royalty-Free Extended",
+          "cr": 5,
+          "type": "rf",
+          "desc": "Unlimited print, merchandise for resale, templates, product packaging."
+        },
+        "ed": {
+          "n": "Editorial",
+          "cr": 1,
+          "type": "editorial",
+          "desc": "News, blogs, education, documentaries. No ads, promotion or merchandise."
+        }
+      },
+      "plans": [
+        {
+          "id": "starter",
+          "n": "Starter",
+          "cr": 10,
+          "p": 99,
+          "d": "10 downloads / month"
+        },
+        {
+          "id": "pro",
+          "n": "Pro",
+          "cr": 50,
+          "p": 349,
+          "d": "50 downloads / month",
+          "hot": true
+        },
+        {
+          "id": "team",
+          "n": "Team",
+          "cr": 200,
+          "p": 999,
+          "d": "200 downloads / month, 5 seats"
+        }
+      ],
+      "packs": [
+        {
+          "id": "pk-5",
+          "cr": 5,
+          "p": 69
+        },
+        {
+          "id": "pk-25",
+          "cr": 25,
+          "p": 249
+        }
+      ]
+    },
+    "licenseRows": [
+      {
+        "id": "lr1",
+        "use": "Website, blog, social media",
+        "std": "✓",
+        "ext": "✓",
+        "ed": "✓ (sirf news/info)"
+      },
+      {
+        "id": "lr2",
+        "use": "Online / TV advertising",
+        "std": "✓",
+        "ext": "✓",
+        "ed": "✕"
+      },
+      {
+        "id": "lr3",
+        "use": "Print (magazine, book, brochure)",
+        "std": "5 lakh copies tak",
+        "ext": "Unlimited",
+        "ed": "✓ editorial context"
+      },
+      {
+        "id": "lr4",
+        "use": "Merchandise for resale (T-shirt, mug)",
+        "std": "✕",
+        "ext": "✓",
+        "ed": "✕"
+      },
+      {
+        "id": "lr5",
+        "use": "Templates, product packaging",
+        "std": "✕",
+        "ext": "✓",
+        "ed": "✕"
+      },
+      {
+        "id": "lr6",
+        "use": "News, documentary, education",
+        "std": "✓",
+        "ext": "✓",
+        "ed": "✓"
+      },
+      {
+        "id": "lr7",
+        "use": "Model / property release",
+        "std": "✓ zaroori",
+        "ext": "✓ zaroori",
+        "ed": "Nahi hota"
+      },
+      {
+        "id": "lr8",
+        "use": "Image edit / manipulate",
+        "std": "✓",
+        "ext": "✓",
+        "ed": "Sirf crop/resize"
+      },
+      {
+        "id": "lr9",
+        "use": "Credit line",
+        "std": "Optional",
+        "ext": "Optional",
+        "ed": "Zaroori"
+      },
+      {
+        "id": "lr10",
+        "use": "Term",
+        "std": "Perpetual",
+        "ext": "Perpetual",
+        "ed": "Perpetual"
+      }
+    ],
+    "faqs": [
+      {
+        "id": "fq1",
+        "q": "Royalty-Free ka matlab free hai?",
+        "a": "Nahi. Ek baar bahut kam minimum fees (₹19 se shuru) deni hoti hai, phir har use par alag royalty nahi deni padti."
+      },
+      {
+        "id": "fq2",
+        "q": "Editorial photo ad me laga sakte hain?",
+        "a": "Nahi. Editorial sirf news/info, blog aur documentary context ke liye hai."
+      },
+      {
+        "id": "fq3",
+        "q": "License kitne samay ka hai?",
+        "a": "Perpetual (hamesha ke liye), license ki shartein ke andar."
+      },
+      {
+        "id": "fq4",
+        "q": "Invoice milega?",
+        "a": "Haan, har order par GST invoice (CGST/SGST ya IGST) milta hai."
+      },
+      {
+        "id": "fq5",
+        "q": "Contributor ko paisa kab milta hai?",
+        "a": "Balance sirf ₹100 hone par payout request karein; UPI/bank me bheja jaata hai."
+      }
+    ],
+    "pages": {
+      "about": {
+        "title": "About SantalStock",
+        "body": "SantalStock is a stock photo marketplace for the life, culture and nature of Santal country, run by BOSC (Baski Online Service Center) from Godda, Jharkhand. We help local photographers earn from their work and help publishers, brands and educators find authentic images with affordable minimum pricing and clear licenses."
+      },
+      "privacy": {
+        "title": "Privacy Policy",
+        "body": "We collect only what we need to run your account and orders: name, verified email, billing details and order history. We never sell your data. Payments are processed securely; we do not store card numbers. You can ask us to delete your account at any time by writing to support@santalstock.in."
+      },
+      "refund": {
+        "title": "Refund Policy",
+        "body": "If you have not downloaded the full-resolution file, you can request a full refund within 7 days of purchase. Once a license is refunded, you must stop using the image. Subscription plans can be cancelled anytime; unused credits stay valid until the end of the period. Write to support@santalstock.in with your order number."
+      },
+      "terms": {
+        "title": "SantalStock License Agreement",
+        "sections": [
+          {
+            "id": "t1",
+            "heading": "1. Grant",
+            "content": "SantalStock aapko (Licensee) chuni gayi image ka non-exclusive, non-transferable, perpetual, worldwide license deta hai, chune gaye license type ki shartein ke anusaar."
+          },
+          {
+            "id": "t2",
+            "heading": "2. Royalty-Free Standard",
+            "content": "Digital use unlimited; print 5,00,000 copies tak; advertising aur marketing allowed. Merchandise for resale aur templates allowed nahi."
+          },
+          {
+            "id": "t3",
+            "heading": "3. Royalty-Free Extended",
+            "content": "Standard ke sab adhikar, plus unlimited print, resale ke liye merchandise, templates aur packaging."
+          },
+          {
+            "id": "t4",
+            "heading": "4. Editorial",
+            "content": "Sirf editorial use: news, commentary, education, documentary. Koi commercial, advertising, promotional, endorsement ya merchandise use nahi. Credit line \"Contributor / SantalStock\" zaroori."
+          },
+          {
+            "id": "t5",
+            "heading": "5. Prohibited (sab licenses)",
+            "content": "Image ko standalone file ki tarah bechna/share karna, logo/trademark me use, apmanjanak ya gair-kanooni sandarbh, ya AI/ML model training dataset me use mana hai."
+          },
+          {
+            "id": "t6",
+            "heading": "6. Contributor Terms & Law",
+            "content": "Copyright contributor ke paas rehta hai. Bharat ka kanoon laagu; jurisdiction: Godda, Jharkhand."
+          }
+        ]
+      }
+    },
+    "contact": {
+      "email": "support@santalstock.in",
+      "location": "Godda, Jharkhand, India",
+      "venture": "A BOSC (Baski Online Service Center) venture"
+    },
+    "footer": {
+      "newsletterTitle": "SantalStock",
+      "newsletterSubtitle": "Get new photos & offers by email",
+      "taglineCustom": "",
+      "paymentMethods": [
+        "UPI",
+        "RuPay",
+        "VISA",
+        "Mastercard",
+        "Net Banking"
+      ],
+      "columns": [
+        {
+          "id": "col1",
+          "heading": "Explore",
+          "links": [
+            {
+              "id": "l1",
+              "label": "Browse",
+              "href": "#/search"
+            },
+            {
+              "id": "l2",
+              "label": "Royalty-Free",
+              "href": "#/search?lic=rf"
+            },
+            {
+              "id": "l3",
+              "label": "Editorial",
+              "href": "#/search?lic=editorial"
+            },
+            {
+              "id": "l4",
+              "label": "Pricing",
+              "href": "#/pricing"
+            },
+            {
+              "id": "l5",
+              "label": "Lightbox",
+              "href": "#/lightbox"
+            }
+          ]
+        },
+        {
+          "id": "col2",
+          "heading": "Licensing",
+          "links": [
+            {
+              "id": "l6",
+              "label": "License Guide",
+              "href": "#/licenses"
+            },
+            {
+              "id": "l7",
+              "label": "License Agreement",
+              "href": "#/terms"
+            },
+            {
+              "id": "l8",
+              "label": "Verify License",
+              "href": "#/verify"
+            },
+            {
+              "id": "l9",
+              "label": "FAQ",
+              "href": "#/faq"
+            }
+          ]
+        },
+        {
+          "id": "col3",
+          "heading": "Contributors",
+          "links": [
+            {
+              "id": "l10",
+              "label": "Sell your photos",
+              "href": "#/contributor"
+            },
+            {
+              "id": "l11",
+              "label": "Upload",
+              "href": "#/contributor/upload"
+            },
+            {
+              "id": "l12",
+              "label": "Earnings",
+              "href": "#/contributor/earnings"
+            },
+            {
+              "id": "l13",
+              "label": "Admin",
+              "href": "#/admin"
+            }
+          ]
+        },
+        {
+          "id": "col4",
+          "heading": "Company",
+          "links": [
+            {
+              "id": "l14",
+              "label": "About us",
+              "href": "#/about"
+            },
+            {
+              "id": "l15",
+              "label": "Contact",
+              "href": "#/contact"
+            },
+            {
+              "id": "l16",
+              "label": "Privacy Policy",
+              "href": "#/privacy"
+            },
+            {
+              "id": "l17",
+              "label": "Refund Policy",
+              "href": "#/refund"
+            }
+          ]
+        }
+      ],
+      "madeWith": "Made with ♥ in Godda, Jharkhand, India",
+      "rights": "All rights reserved."
+    },
+    "settings": {
+      "gstin": "YOUR-GSTIN",
+      "customCategories": []
+    }
+  },
+  "assets": [],
+  "deletedSeed": []
+}

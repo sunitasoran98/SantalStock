@@ -1,0 +1,10 @@
+name = "santalstock"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "dist"
+
+# Bind a Cloudflare KV namespace named SANTALSTOCK_KV in Cloudflare Dashboard:
+# Workers & Pages -> santalstock -> Settings -> Bindings -> Add KV Namespace
+# Variable name: SANTALSTOCK_KV
+#
+# Optional: Add RESEND_API_KEY and EMAIL_FROM under Settings -> Environment Variables
+# to deliver real 6-digit verification OTP emails directly to user inboxes.
