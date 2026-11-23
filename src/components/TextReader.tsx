@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pause, Play, Square, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsLeft, ChevronsRight, Pause, Play, Settings2, Square, Volume1, X } from 'lucide-react';
 
 /* SantalStock's own reader mark: an open book with sound waves */
 function ReaderMark({ className = '', active = false }: { className?: string; active?: boolean }) {
@@ -175,7 +175,6 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
   };
 
   useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
@@ -197,7 +196,7 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, lang]);
+  }, [lang]);
 
   useEffect(() => {
     if (externalText?.text) {
@@ -217,18 +216,73 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
 
   return (
     <div className="noprint">
-      <button
-        type="button"
-        aria-label={tr(lang, 'reader')}
-        title={tr(lang, 'reader')}
-        onClick={() => setOpen((o) => !o)}
-        className="fixed right-4 bottom-4 z-40 w-14 h-14 rounded-2xl bg-gradient-to-br from-[#011f43] to-[#2f3f8f] text-white ring-4 ring-white/70 shadow-[0_12px_28px_-8px_rgba(1,31,67,0.55)] flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
-      >
-        <ReaderMark className="w-7 h-7" active={state === 'play'} />
-      </button>
+      {/* Compact reader bar: [🔊 सुनें] [« Home] [<] [>] [End »] [⚙] */}
+      <div className="fixed right-3 bottom-3 z-40 flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/90 backdrop-blur border border-[#e6e8ee] shadow-[0_10px_24px_-10px_rgba(1,31,67,0.35)]">
+        <button
+          type="button"
+          onClick={() => (state === 'play' ? pause() : startReading())}
+          aria-label={state === 'play' ? tr(lang, 'pause') : tr(lang, 'listen')}
+          title={tr(lang, 'reader')}
+          className={`h-10 pl-2.5 pr-3 rounded-xl border flex items-center gap-1.5 text-[15px] font-bold cursor-pointer transition ${
+            state === 'play'
+              ? 'bg-[#8a4b00] border-[#8a4b00] text-white'
+              : 'bg-[#fff8e1] border-[#f5c451] text-[#8a4b00] hover:bg-[#ffefc2]'
+          }`}
+        >
+          {state === 'play' ? <Pause className="w-4.5 h-4.5" aria-hidden /> : <Volume1 className="w-5 h-5" aria-hidden />}
+          <span>{state === 'play' ? tr(lang, 'pause') : state === 'paused' ? tr(lang, 'resume') : tr(lang, 'listen')}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => jump('first')}
+          aria-label={tr(lang, 'rdFirst')}
+          title={`${tr(lang, 'rdFirst')} · Alt+Home`}
+          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#1f6fd1] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
+        >
+          <ChevronsLeft className="w-5 h-5" strokeWidth={2.75} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => jump('prev')}
+          aria-label={tr(lang, 'rdPrev')}
+          title={`${tr(lang, 'rdPrev')} · Alt+←`}
+          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#1f6fd1] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
+        >
+          <ChevronLeft className="w-5 h-5" strokeWidth={2.75} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => jump('next')}
+          aria-label={tr(lang, 'rdNext')}
+          title={`${tr(lang, 'rdNext')} · Alt+→`}
+          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#e0730f] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
+        >
+          <ChevronRight className="w-5 h-5" strokeWidth={2.75} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => jump('last')}
+          aria-label={tr(lang, 'rdLast')}
+          title={`${tr(lang, 'rdLast')} · Alt+End`}
+          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#e0730f] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
+        >
+          <ChevronsRight className="w-5 h-5" strokeWidth={2.75} aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={tr(lang, 'reader')}
+          title={tr(lang, 'reader')}
+          className={`w-9 h-10 sm:w-10 rounded-xl border flex items-center justify-center cursor-pointer ${
+            open ? 'bg-[#011f43] border-[#011f43] text-white' : 'bg-[#f4f6fa] border-[#e1e5ec] text-[#011f43] hover:bg-[#e9eef7]'
+          }`}
+        >
+          <Settings2 className="w-4.5 h-4.5" aria-hidden />
+        </button>
+      </div>
 
       {open && (
-        <div className="fixed right-4 bottom-[88px] z-40 bg-white/95 backdrop-blur border border-[#d9dbe1] rounded-2xl shadow-[0_24px_48px_-16px_rgba(1,31,67,0.45)] p-4 w-[300px] max-w-[calc(100vw-32px)]">
+        <div className="fixed right-4 bottom-[72px] z-40 bg-white/95 backdrop-blur border border-[#d9dbe1] rounded-2xl shadow-[0_24px_48px_-16px_rgba(1,31,67,0.45)] p-4 w-[300px] max-w-[calc(100vw-32px)]">
           <div className="flex items-center justify-between mb-2">
             <h4 className="m-0 font-bold text-sm text-[#011f43] flex items-center gap-2"><span className="w-7 h-7 rounded-lg bg-[#011f43] text-white flex items-center justify-center"><ReaderMark className="w-4.5 h-4.5" active={state === 'play'} /></span> {tr(lang, 'reader')}</h4>
             <button

@@ -134,6 +134,7 @@ export const TX: Record<string, [string, string, string, string]> = {
   earnings: ['Earnings', 'कमाई', 'Ńam taka', 'ञाम टाका'],
   dashboard: ['Dashboard', 'डैशबोर्ड', 'Dashboard', 'डैशबोर्ड'],
   reader: ['Text reader', 'टेक्स्ट रीडर', 'Ol porhao', 'ओल पोरहाव'],
+  listen: ['Listen', 'सुनें', 'Aṛjom', 'आड़जोम्'],
   readPage: ['Read page', 'पेज पढ़ें', 'Sahṭa porhao', 'साहटा पोरहाव'],
   readSel: ['Select text to read only that part', 'सिर्फ़ चुना हुआ हिस्सा पढ़ने के लिए टेक्स्ट चुनें', 'Bachao ol ge porhaoḱa', 'बाछाव ओल गे पोरहावोक्आ'],
   pause: ['Pause', 'रोकें', 'Thir', 'थिर'],
