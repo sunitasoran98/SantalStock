@@ -856,7 +856,7 @@ export default function App() {
       }
       const tab = args[0] || 'downloads';
       const myOrders = orders.filter((o) => o.user === user.email);
-      const myItems = myOrders.flatMap((o) => o.items.map((i, idx) => ({ o, i, idx })));
+      const myItems = myOrders.filter((o) => !o.status || o.status === 'paid').flatMap((o) => o.items.map((i, idx) => ({ o, i, idx })));
 
       return (
         <section className="wrap py-9">
@@ -954,7 +954,7 @@ export default function App() {
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b border-[#d9dbe1] text-left text-xs uppercase text-[#5c6170]">
-                      <th className="py-2">Order</th><th>Date</th><th>Items</th><th>Total</th><th />
+                      <th className="py-2">Order</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th />
                     </tr>
                   </thead>
                   <tbody>
@@ -964,6 +964,7 @@ export default function App() {
                         <td>{new Date(o.date).toLocaleDateString('en-IN')}</td>
                         <td>{o.items.length || o.desc}</td>
                         <td className="tabular-nums font-bold">{o.credits ? `${o.credits} cr` : money(o.total)}</td>
+                        <td><span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${o.status === 'pending' ? 'bg-[#fff4d6] text-[#8a5200]' : o.status === 'rejected' ? 'bg-[#fde8e8] text-[#b42318]' : 'bg-[#e6f6ec] text-[#1b8a4b]'}`}>{tr(lang, o.status === 'pending' ? 'stPending' : o.status === 'rejected' ? 'stRejected' : 'stPaid')}</span></td>
                         <td><a href={`#/invoice/${o.id}`} onClick={(e) => { e.preventDefault(); navigate(`#/invoice/${o.id}`); }} className="text-[#2f3f8f] text-xs font-bold">Invoice</a></td>
                       </tr>
                     ))}

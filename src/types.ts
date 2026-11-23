@@ -85,6 +85,10 @@ export interface Order {
   items: OrderItem[];
   desc?: string;
   addCr?: number;
+  /** paid = license/credits active; pending = UPI paid, admin verifying UTR; rejected = UTR not found */
+  status?: 'paid' | 'pending' | 'rejected';
+  utr?: string;
+  planId?: string;
 }
 
 export interface Payout {
@@ -218,6 +222,11 @@ export interface SiteConfig {
     textColor: string;
   };
   pricing: PricingConfig;
+  payment?: {
+    upiId: string;
+    payeeName: string;
+    whatsapp: string;
+  };
   licenseRows: LicenseRow[];
   faqs: FaqItem[];
   pages: {

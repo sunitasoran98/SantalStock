@@ -626,7 +626,10 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const orders = u
       ? u.role === 'admin'
         ? db.orders
-        : db.orders.filter((o) => o.user === u.email || o.items.some((i) => i.owner === u.email))
+        : db.orders
+            .filter((o) => o.user === u.email || o.items.some((i) => i.owner === u.email))
+            .filter((o) => o.user === u.email || !o.status || o.status === 'paid')
+            .map((o) => (o.status && o.status !== 'paid' ? { ...o, items: o.items.map((i) => ({ ...i, key: '' })) } : o))
       : [];
     const payouts = u
       ? u.role === 'admin'
@@ -807,13 +810,21 @@ export async function onRequest(context: CfContext): Promise<Response> {
         state: u.state,
         pin: u.pin,
       },
-      pay: pay === 'credits' || pay === 'card' ? pay : 'upi',
+      pay: pay === 'credits' ? 'credits' : 'upi',
+      status: pay === 'credits' ? 'paid' : 'pending',
       type: kind === 'cart' ? 'license' : 'credits',
       sub: 0,
       gst: 0,
       total: 0,
       items: [],
     };
+
+    if (order.pay === 'upi') {
+      const utr = String(body.utr || '').replace(/\s/g, '');
+      if (!/^\d{12}$/.test(utr)) return json({ error: 'Enter the 12-digit UPI transaction ID (UTR).' }, 400);
+      if (db.orders.some((x) => x.utr === utr && x.status !== 'rejected')) return json({ error: 'This UTR is already used.' }, 400);
+      order.utr = utr;
+    }
 
     if (kind === 'cart') {
       const catalog = getCatalog(db, u);
@@ -868,8 +879,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       order.total = P.p + gst;
       order.desc = `${P.n} plan`;
       order.addCr = P.cr;
-      u.credits = (u.credits || 0) + P.cr;
-      u.plan = { id: P.id, since: order.date };
+      order.planId = P.id; // credits + plan activate on admin approval
     } else if (typeof kind === 'string' && kind.startsWith('pack:')) {
       const v = kind.slice(5);
       const P = pricing.packs.find((x) => x.id === v) || pricing.packs[Number(v)];
@@ -879,8 +889,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       order.gst = gst;
       order.total = P.p + gst;
       order.desc = `${P.cr} credit pack`;
-      order.addCr = P.cr;
-      u.credits = (u.credits || 0) + P.cr;
+      order.addCr = P.cr; // credits activate on admin approval
     } else {
       return json({ error: 'Invalid order type.' }, 400);
     }
@@ -890,10 +899,32 @@ export async function onRequest(context: CfContext): Promise<Response> {
     return json({ order, user: sanitizeUser(u) });
   }
 
+
+  /* ---- UPI manual verification (HorKathaSuite style) ---- */
+  const approveMatch = pathname.match(/^\/api\/orders\/([^/]+)\/(approve|reject)$/);
+  if (method === 'POST' && approveMatch) {
+    const u = getAuthUser(request, db);
+    if (!u || u.role !== 'admin') return json({ error: 'Admin access required.' }, 403);
+    const o = db.orders.find((x) => x.id === decodeURIComponent(approveMatch[1]));
+    if (!o) return json({ error: 'Order not found.' }, 404);
+    if (o.status !== 'pending') return json({ error: 'Order is not pending.' }, 400);
+    if (approveMatch[2] === 'approve') {
+      o.status = 'paid';
+      const buyer = db.users.find((x) => x.email === o.user);
+      if (buyer && o.addCr) buyer.credits = (buyer.credits || 0) + o.addCr;
+      if (buyer && o.planId) buyer.plan = { id: o.planId, since: new Date().toISOString() };
+    } else {
+      o.status = 'rejected';
+    }
+    await saveDb(env, db);
+    return json({ order: o });
+  }
+
   if (method === 'GET' && pathname === '/api/verify-license') {
     const key = String(url.searchParams.get('k') || '').trim().toUpperCase();
     if (!key) return json({ valid: false });
     for (const o of db.orders) {
+      if (o.status && o.status !== 'paid') continue;
       for (const i of o.items) {
         if (i.key.toUpperCase() === key) {
           return json({

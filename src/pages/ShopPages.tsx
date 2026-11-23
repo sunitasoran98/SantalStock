@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Pencil, Trash2, Printer, Download } from 'lucide-react';
-import { fullAssetUrl, thumbUrl, tr } from '../data/defaults';
+import { DEFAULT_SITE_CONFIG, fullAssetUrl, thumbUrl, tr } from '../data/defaults';
 import { api } from '../lib/api';
 import { PhotoTile } from '../components/PhotoTile';
+import { UpiQr } from '../components/UpiQr';
 import type { AdminEditTarget, Asset, CartItem, LangCode, LicenseOptionKey, Order, SiteConfig, SizeKey, User } from '../types';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -370,8 +371,11 @@ export function CartCheckoutPage({
   const [pin, setPin] = useState(user?.pin || '');
   const [licensee, setLicensee] = useState(user?.company || user?.name || '');
   const [intendedUse, setIntendedUse] = useState('');
-  const [pay, setPay] = useState<'credits' | 'upi' | 'card'>('upi');
+  const [pay, setPay] = useState<'credits' | 'upi'>('upi');
+  const [utr, setUtr] = useState('');
+  const [payRef] = useState(() => 'SS' + Date.now().toString(36).toUpperCase());
   const [processing, setProcessing] = useState(false);
+  const payCfg = siteConfig.payment?.upiId ? siteConfig.payment : DEFAULT_SITE_CONFIG.payment!;
 
   const validCart = cart.filter((c) => assets.some((a) => a.id === c.id));
   const subCart = validCart.reduce((n, i) => n + i.price, 0);
@@ -476,6 +480,10 @@ export function CartCheckoutPage({
 
   async function submitOrder(e: React.FormEvent) {
     e.preventDefault();
+    if (pay === 'upi' && !/^\d{12}$/.test(utr.replace(/\s/g, ''))) {
+      toast(tr(lang, 'utrLabel'));
+      return;
+    }
     setProcessing(true);
     try {
       const kind = planObj ? `plan:${planObj.id}` : packObj ? `pack:${packObj.id}` : 'cart';
@@ -488,10 +496,12 @@ export function CartCheckoutPage({
           items: validCart,
           licensee: licensee || company || name,
           use: intendedUse,
+          utr: pay === 'upi' ? utr.replace(/\s/g, '') : undefined,
+          ref: payRef,
         }),
       });
       if (kind === 'cart') onClearCart();
-      toast('Payment safal ✓');
+      toast(res.order.status === 'pending' ? tr(lang, 'pendingMsg') : 'Payment safal ✓');
       await onOrderSuccess(res.order);
     } catch (err) {
       toast((err as Error).message);
@@ -538,15 +548,56 @@ export function CartCheckoutPage({
               <input type="radio" name="pay" checked={pay === 'upi'} onChange={() => setPay('upi')} />
               <span className="text-sm"><b>UPI</b> <span className="text-xs text-[#5c6170]">GPay, PhonePe, Paytm</span></span>
             </label>
-            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#d9dbe1] cursor-pointer">
-              <input type="radio" name="pay" checked={pay === 'card'} onChange={() => setPay('card')} />
-              <span className="text-sm"><b>Card / Netbanking</b></span>
-            </label>
           </div>
 
-          <div className="rounded-lg bg-[#fff7e6] border border-[#f5d590] p-3 text-xs text-[#8a5200]">
-            {tr(lang, 'demo')}
-          </div>
+          {pay === 'upi' && (() => {
+            const amt = String(total);
+            const upiUrl = `upi://pay?pa=${encodeURIComponent(payCfg.upiId).replace(/%40/g, '@')}&pn=${encodeURIComponent(payCfg.payeeName)}&am=${amt}&cu=INR&tn=${encodeURIComponent('SantalStock ' + payRef)}`;
+            const waText = `SantalStock payment\nRef: ${payRef}\nName: ${name}\nEmail: ${email}\nAmount: Rs ${amt}\nUTR: ${utr || '(screenshot attached)'}`;
+            return (
+              <div className="rounded-xl border border-[#cfe0ff] bg-gradient-to-b from-[#f5f9ff] to-white p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h4 className="m-0 text-sm font-bold text-[#011f43]">{tr(lang, 'upiPayTitle')}</h4>
+                  <span className="text-lg font-extrabold text-[#011f43] tabular-nums">{money(total)}</span>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  <div className="w-44 h-44 shrink-0 rounded-xl bg-white border border-[#d9dbe1] p-2">
+                    <UpiQr value={upiUrl} className="w-full h-full object-contain" />
+                  </div>
+                  <div className="flex-1 w-full space-y-2 text-xs text-[#33405c]">
+                    <p className="m-0">{tr(lang, 'upiScan')}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <code className="px-2 py-1 rounded bg-[#eef1f7] font-bold text-[#011f43]">{payCfg.upiId}</code>
+                      <button type="button" onClick={() => { navigator.clipboard?.writeText(payCfg.upiId); toast('UPI ID copied'); }} className="px-2 py-1 rounded border border-[#d9dbe1] bg-white font-semibold cursor-pointer">Copy</button>
+                    </div>
+                    <div className="text-[11px] text-[#5c6170]">{payCfg.payeeName} · Ref {payRef}</div>
+                    <a href={upiUrl} className="sm:hidden inline-flex items-center justify-center w-full py-2.5 rounded-lg bg-[#1b8a4b] text-white font-bold no-underline">{tr(lang, 'upiOpen')}</a>
+                  </div>
+                </div>
+                <label className="text-xs font-bold block mt-3 mb-1">{tr(lang, 'utrLabel')}</label>
+                <input
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9 ]{12,14}"
+                  maxLength={14}
+                  value={utr}
+                  onChange={(e) => setUtr(e.target.value.replace(/[^0-9 ]/g, ''))}
+                  placeholder="e.g. 412345678901"
+                  className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg text-sm tracking-wider"
+                />
+                <div className="text-[11px] text-[#5c6170] mt-1">{tr(lang, 'utrHelp')}</div>
+                <a
+                  href={`https://wa.me/${payCfg.whatsapp}?text=${encodeURIComponent(waText)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#25d366] text-white text-xs font-bold no-underline"
+                >
+                  {tr(lang, 'waSend')}
+                </a>
+              </div>
+            );
+          })()}
+
 
           {!isCreditPurchase && (
             <label className="flex items-start gap-2 text-xs text-[#33405c] pt-1">
@@ -579,7 +630,7 @@ export function CartCheckoutPage({
           <hr className="border-[#e5e8ef]" />
           <div className="flex justify-between items-center"><span>{tr(lang, 'total')}</span><span className="text-3xl font-extrabold text-[#011f43] tabular-nums">{money(total)}</span></div>
           <button type="submit" disabled={processing} className="w-full py-3 rounded-lg bg-[#d6262f] text-white font-bold cursor-pointer disabled:opacity-50">
-            {processing ? 'Processing...' : tr(lang, 'pay')}
+            {processing ? 'Processing...' : pay === 'upi' ? tr(lang, 'submitUtr') : tr(lang, 'pay')}
           </button>
         </div>
       </form>
@@ -613,6 +664,18 @@ export function OrderCertInvoicePage({
 }) {
   const order = orders.find((o) => o.id === orderId);
   if (!order) return <div className="wrap py-16 text-center text-[#5c6170]">Order nahi mila.</div>;
+  if (order.status && order.status !== 'paid') {
+    return (
+      <section className="wrap py-14 max-w-xl text-center">
+        <h1 className="dm text-3xl text-[#011f43] m-0">Order {order.id}</h1>
+        <div className={`mt-4 rounded-xl p-4 text-sm ${order.status === 'pending' ? 'bg-[#fff7e6] border border-[#f5d590] text-[#8a5200]' : 'bg-[#fde8e8] border border-[#f3b4b4] text-[#b42318]'}`}>
+          {order.status === 'pending' ? tr(lang, 'pendingMsg') : `${tr(lang, 'stRejected')}: UTR ${order.utr || ''}`}
+        </div>
+        <div className="mt-3 text-xs text-[#5c6170]">UTR {order.utr} · {money(order.total)}</div>
+        <button type="button" onClick={() => onNavigate('#/account/orders')} className="mt-5 px-4 py-2 rounded-lg bg-[#011f43] text-white text-sm font-semibold cursor-pointer">Orders</button>
+      </section>
+    );
+  }
 
   if (view === 'order') {
     return (

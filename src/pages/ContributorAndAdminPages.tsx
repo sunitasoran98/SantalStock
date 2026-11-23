@@ -131,7 +131,7 @@ export function ContributorPage({
   }
 
   const mine = assets.filter((a) => a.owner === user.email);
-  const sales = orders.flatMap((o) => o.items.filter((i) => i.owner === user.email).map((i) => ({ ...i, date: o.date, oid: o.id })));
+  const sales = orders.filter((o) => !o.status || o.status === 'paid').flatMap((o) => o.items.filter((i) => i.owner === user.email).map((i) => ({ ...i, date: o.date, oid: o.id })));
   const earned = sales.reduce((n, s) => n + s.royalty, 0);
   const paid = payouts.filter((p) => p.user === user.email).reduce((n, p) => n + p.amt, 0);
   const bal = earned - paid;
@@ -483,9 +483,10 @@ export function AdminDashboard({
   }
 
   const pending = assets.filter((a) => a.status === 'pending');
-  const rev = orders.reduce((n, o) => n + (o.sub || 0), 0);
-  const gstSum = orders.reduce((n, o) => n + (o.gst || 0), 0);
-  const roy = orders.flatMap((o) => o.items).reduce((n, i) => n + i.royalty, 0);
+  const paidOrders = orders.filter((o) => !o.status || o.status === 'paid');
+  const rev = paidOrders.reduce((n, o) => n + (o.sub || 0), 0);
+  const gstSum = paidOrders.reduce((n, o) => n + (o.gst || 0), 0);
+  const roy = paidOrders.flatMap((o) => o.items).reduce((n, i) => n + i.royalty, 0);
   const filteredPhotos = pq.trim()
     ? assets.filter((a) => [a.title, a.id, a.contributor, a.cat].some((x) => x.toLowerCase().includes(pq.toLowerCase())))
     : assets;
@@ -566,7 +567,7 @@ export function AdminDashboard({
         {[
           ['review', `Review queue (${pending.length})`],
           ['photos', `Photos (${assets.length})`],
-          ['orders', `Orders (${orders.length})`],
+          ['orders', `Orders (${orders.length})${orders.some((o) => o.status === 'pending') ? ` · ${orders.filter((o) => o.status === 'pending').length} pending` : ''}`],
           ['payouts', `Payouts (${payouts.length})`],
           ['users', `Users (${users.length})`],
           ['messages', `Messages (${messages.length})`],
@@ -684,7 +685,7 @@ export function AdminDashboard({
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-[#d9dbe1] text-left text-xs uppercase text-[#5c6170]">
-                <th className="py-2">Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Pay</th><th>Total</th>
+                <th className="py-2">Order</th><th>Date</th><th>Customer</th><th>Items</th><th>Pay / UTR</th><th>Total</th><th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -694,8 +695,35 @@ export function AdminDashboard({
                   <td>{new Date(o.date).toLocaleDateString('en-IN')}</td>
                   <td>{o.bill.name}<br /><span className="text-xs text-[#5c6170]">{o.user}</span></td>
                   <td>{o.items.length || o.desc}</td>
-                  <td className="uppercase text-xs font-semibold">{o.pay}</td>
+                  <td className="text-xs"><b className="uppercase">{o.pay}</b>{o.utr && <><br /><code className="bg-[#f3f4f8] px-1.5 py-0.5 rounded">{o.utr}</code></>}</td>
                   <td className="tabular-nums font-bold">{o.credits ? `${o.credits} cr` : money(o.total)}</td>
+                  <td>
+                    {o.status === 'pending' ? (
+                      <div className="flex gap-1.5">
+                        {(['approve', 'reject'] as const).map((act) => (
+                          <button
+                            key={act}
+                            type="button"
+                            onClick={async () => {
+                              if (act === 'reject' && !window.confirm(`Reject ${o.id}? UTR ${o.utr || ''}`)) return;
+                              try {
+                                await api(`/api/orders/${encodeURIComponent(o.id)}/${act}`, { method: 'POST' });
+                                await onRefresh();
+                                toast(act === 'approve' ? `${o.id} approved ✓` : `${o.id} rejected`);
+                              } catch (err) {
+                                toast((err as Error).message);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded text-xs font-bold cursor-pointer ${act === 'approve' ? 'bg-[#1b8a4b] text-white' : 'border border-[#e3b4b4] text-[#b42318] bg-white'}`}
+                          >
+                            {act === 'approve' ? 'Approve' : 'Reject'}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className={`text-xs font-bold uppercase ${o.status === 'rejected' ? 'text-[#b42318]' : 'text-[#1b8a4b]'}`}>{o.status || 'paid'}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
