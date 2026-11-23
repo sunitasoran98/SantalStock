@@ -144,6 +144,8 @@ export const TX: Record<string, [string, string, string, string]> = {
   rdPrev: ['Previous line', 'पिछली लाइन', 'Laha ol', 'लाहा ओल'],
   rdNext: ['Next line', 'अगली लाइन', 'Tayom ol', 'तायोम ओल'],
   rdLast: ['Last line (End)', 'आख़िरी लाइन (End)', 'Mucạt ol (End)', 'मुचात् ओल (End)'],
+  pgTop: ['Go to top of page', 'पेज के ऊपर जाएँ', 'Sahṭa cetan sen', 'साहटा चेतान सेन'],
+  pgEnd: ['Go to end of page', 'पेज के नीचे जाएँ', 'Sahṭa latar sen', 'साहटा लातार सेन'],
   speed: ['Speed', 'गति', 'Gati', 'गाति'],
   noVoice: ['Your browser has no voice for reading.', 'आपके ब्राउज़र में पढ़ने की आवाज़ नहीं है।', "Amak' browser re aṛaṅ banuk'a.", 'आमाक् ब्राउज़र रे आड़ाङ बानुक्आ।'],
   ftag: ['A marketplace for photos of Santal life, culture and nature.', 'संताल जीवन, संस्कृति और प्रकृति की तस्वीरों का बाज़ार।', "Santal jiwi, lakcar ar prokriti reak' photo hạṭ.", 'संताल जिवि, लाकचार आर प्रोकृति रेयाक् फोटो हाट।'],

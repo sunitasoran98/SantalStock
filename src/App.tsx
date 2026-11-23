@@ -1615,7 +1615,7 @@ export default function App() {
       )}
 
       {toastMsg && (
-        <div className="noprint fixed bottom-5 left-1/2 -translate-x-1/2 bg-[#011f43] text-white px-5 py-3 rounded-xl z-50 shadow-xl text-sm font-semibold">
+        <div className="noprint fixed bottom-[76px] left-1/2 -translate-x-1/2 bg-[#011f43] text-white px-5 py-3 rounded-xl z-50 shadow-xl text-sm font-semibold">
           {toastMsg}
         </div>
       )}
