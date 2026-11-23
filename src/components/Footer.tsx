@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pencil } from 'lucide-react';
+import { Lock, Pencil } from 'lucide-react';
 import { LANGS, tr } from '../data/defaults';
 import { api } from '../lib/api';
 import type { AdminEditTarget, LangCode, SiteConfig } from '../types';
@@ -21,6 +21,15 @@ const SOCIAL_ICONS: [string, string, string][] = [
   ['x', 'X', 'M17.8 3h3.3l-7.2 8.2L22.4 21h-6.6l-5.2-6.8L4.6 21H1.3l7.7-8.8L.9 3h6.8l4.7 6.2L17.8 3zm-1.2 16h1.8L6.6 4.9H4.7L16.6 19z'],
   ['wa', 'WhatsApp', 'M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18a8 8 0 01-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1112 20zm4.4-6c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1l-.8.9c-.1.2-.3.2-.5.1a6.6 6.6 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.5-.4h-.5a.9.9 0 00-.7.3 2.8 2.8 0 00-.9 2.1 5 5 0 001 2.6 11.2 11.2 0 004.3 3.8c1.6.7 2.2.7 3 .6.5-.1 1.4-.6 1.6-1.1.2-.6.2-1 .1-1.1l-.5-.3z'],
 ];
+
+const PAY_STYLE: Record<string, { bg: string; fg: string; bd: string; dots?: string[] }> = {
+  upi: { bg: '#ffffff', fg: '#3a3a3a', bd: '#d7dde8', dots: ['#ef7f1a', '#0f9d58'] },
+  rupay: { bg: '#0b2a6b', fg: '#ffffff', bd: '#0b2a6b', dots: ['#f58220', '#2e9e48'] },
+  visa: { bg: '#1a1f71', fg: '#ffffff', bd: '#1a1f71', dots: ['#f7b600'] },
+  mastercard: { bg: '#ffffff', fg: '#1b1b1b', bd: '#d7dde8', dots: ['#eb001b', '#f79e1b'] },
+  netbanking: { bg: '#0f5e74', fg: '#ffffff', bd: '#0f5e74', dots: ['#7fd3e6'] },
+  default: { bg: '#ffffff', fg: '#011f43', bd: '#d6deeb' },
+};
 
 export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit, onNavigate, toast }: FooterProps) {
   const [email, setEmail] = useState('');
@@ -156,16 +165,29 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
           <div>
             © {new Date().getFullYear()} SantalStock · {siteConfig.contact.venture} · {siteConfig.footer.rights}
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-[#33405c] mr-1">🔒 {tr(lang, 'secure')}</span>
-            {siteConfig.footer.paymentMethods.map((pm) => (
-              <span
-                key={pm}
-                className="bg-white text-[#011f43] border border-[#d6deeb] font-bold text-[11px] rounded px-2 py-1"
-              >
-                {pm}
-              </span>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 font-bold text-[#0b6b3a] bg-[#e8f6ee] border border-[#bfe5cf] rounded-full px-3 py-1 text-[12px] mr-1">
+              <Lock className="w-3.5 h-3.5" aria-hidden /> {tr(lang, 'secure')}
+            </span>
+            {siteConfig.footer.paymentMethods.map((pm) => {
+              const st = PAY_STYLE[pm.toLowerCase().replace(/\s+/g, '')] || PAY_STYLE.default;
+              return (
+                <span
+                  key={pm}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11.5px] font-extrabold tracking-wide shadow-sm border"
+                  style={{ background: st.bg, color: st.fg, borderColor: st.bd }}
+                >
+                  {st.dots ? (
+                    <span className="inline-flex -space-x-1" aria-hidden>
+                      {st.dots.map((c, i) => (
+                        <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: c, opacity: 0.95 }} />
+                      ))}
+                    </span>
+                  ) : null}
+                  {pm}
+                </span>
+              );
+            })}
           </div>
         </div>
         <div className="wrap text-center text-xs mt-2 opacity-80">{siteConfig.footer.madeWith}</div>
