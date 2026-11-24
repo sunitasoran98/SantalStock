@@ -297,12 +297,13 @@ export async function handleStaticFallback<T>(
     if (!cleanName || cleanName.length < 2) throw new Error('Please enter your full name.');
     if (pw.length < 6) throw new Error('Password must be at least 6 characters.');
     if (!mobile) throw new Error('Please enter a valid 10-digit mobile number.');
+    if (body.role === 'admin' && !OWNER_ADMIN_EMAILS.has(email)) throw new Error('Only the owner email can set up Admin. Please login as Buyer or Contributor.');
     const check = await validateRealEmail(email);
     if (!check.ok) throw new Error(check.error || 'Invalid email.');
 
     const existing = db.users.find((u) => u.email === email);
     if (existing && existing.emailVerified) {
-      throw new Error('This email is already registered. Please login.');
+      throw new Error('This email is already registered. Please login, or use Forgot password.');
     }
     const { hash, salt } = await hashPassword(pw);
     const otpCode = makeOtp();

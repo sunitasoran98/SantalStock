@@ -59,4 +59,25 @@ This project is pre-configured for **Cloudflare Pages** with:
 ## Default Admin Login
 - **Email**: `admin@santalstock.in`
 - **Password**: `admin123`
-- Any account registered with `sunitasoran98@gmail.com` is also automatically granted Admin rights.
+- This demo login works only until the owner admin is set up.
+
+## First-time owner Admin setup
+1. Set up email OTP first (EmailJS or Resend, below).
+2. Site → Login → Admin → "Set admin password".
+3. Name, `sunitasoran98@gmail.com`, mobile, password, confirm → OTP comes to that Gmail → enter it.
+4. You are now Admin. The demo login `admin@santalstock.in` / `admin123` is switched off automatically.
+5. Forgot it later? Admin → Forgot? → OTP to the same Gmail.
+
+## Email OTP with EmailJS (no domain needed)
+Sends OTP from your own Gmail. Free plan: 200 emails/month. The OTP is sent from the server, so it never reaches the browser.
+1. emailjs.com → Sign up → Email Services → Add New Service → Gmail → Connect your Gmail → Create. Copy the Service ID.
+2. Email Templates → Create New Template:
+   - Subject: `{{subject}}`
+   - Content: `Your {{site}} {{purpose}} code is {{code}}. It is valid for {{minutes}} minutes. If you did not ask for it, ignore this email.`
+   - Settings / To Email: `{{to_email}}` · From Name: `SantalStock`
+   - Save. Copy the Template ID.
+3. Account → General: copy Public Key and Private Key.
+4. Account → Security: turn ON "Allow EmailJS API for non-browser applications" and "Use Private Key". Save.
+5. Cloudflare → Workers & Pages → santalstock → Settings → Variables and Secrets → Production → add (Type: Secret):
+   `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY`
+6. Push / Retry deployment. If RESEND_API_KEY is also set, Resend is tried first.

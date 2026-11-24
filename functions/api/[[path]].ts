@@ -35,6 +35,10 @@ interface CfEnv {
   /** Testing only: "1" shows OTP on screen when email is not set up. Never set on the live site. */
   ALLOW_SCREEN_OTP?: string;
   RESEND_API_KEY?: string;
+  EMAILJS_SERVICE_ID?: string;
+  EMAILJS_TEMPLATE_ID?: string;
+  EMAILJS_PUBLIC_KEY?: string;
+  EMAILJS_PRIVATE_KEY?: string;
   EMAIL_FROM?: string;
   GITHUB_TOKEN?: string;
   GITHUB_OWNER?: string;
@@ -97,7 +101,8 @@ function defaultGitHubSync(env: CfEnv): GitHubSyncConfig {
 }
 
 const DB_KV_KEY = 'santalstock_db_v1';
-const OWNER_ADMIN_EMAILS = new Set(['admin@santalstock.in', 'sunitasoran98@gmail.com']);
+const DEMO_ADMIN_EMAIL = 'admin@santalstock.in';
+const OWNER_ADMIN_EMAILS = new Set([DEMO_ADMIN_EMAIL, 'sunitasoran98@gmail.com']);
 const DISPOSABLE_DOMAINS = new Set([
   'mailinator.com',
   'tempmail.com',
@@ -329,6 +334,30 @@ async function validateRealEmail(email: string): Promise<{ ok: boolean; error?: 
   return { ok: true };
 }
 
+function emailConfigured(env: CfEnv): boolean {
+  return !!env.RESEND_API_KEY || !!(env.EMAILJS_SERVICE_ID && env.EMAILJS_TEMPLATE_ID && env.EMAILJS_PUBLIC_KEY && env.EMAILJS_PRIVATE_KEY);
+}
+
+async function sendViaEmailJs(env: CfEnv, to: string, subject: string, code: string, purpose: string): Promise<boolean> {
+  if (!(env.EMAILJS_SERVICE_ID && env.EMAILJS_TEMPLATE_ID && env.EMAILJS_PUBLIC_KEY && env.EMAILJS_PRIVATE_KEY)) return false;
+  try {
+    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: env.EMAILJS_SERVICE_ID,
+        template_id: env.EMAILJS_TEMPLATE_ID,
+        user_id: env.EMAILJS_PUBLIC_KEY,
+        accessToken: env.EMAILJS_PRIVATE_KEY,
+        template_params: { to_email: to, subject, code, purpose, minutes: purpose === 'password reset' ? '10' : '15', site: 'SantalStock' },
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function sendVerificationEmail(
   env: CfEnv,
   to: string,
@@ -349,20 +378,21 @@ async function sendVerificationEmail(
           from,
           to: [to],
           subject,
-          text: `Your SantalStock ${purpose} code is: ${code}\n\nThis code expires in 15 minutes.`,
+          text: `Your SantalStock ${purpose} code is: ${code}\n\nThis code expires in ${purpose === 'password reset' ? 10 : 15} minutes.`,
           html: `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px">
             <h2 style="margin:0 0 8px"><span style="color:#d6262f">SANTAL</span><span style="color:#0f766e">STOCK</span></h2>
             <p style="color:#334155">Your ${purpose} verification code is:</p>
             <div style="font-size:32px;font-weight:800;letter-spacing:8px;color:#011f43;background:#f1f5f9;padding:16px;text-align:center;border-radius:8px;margin:16px 0">${code}</div>
-            <p style="color:#64748b;font-size:13px">This code is valid for 15 minutes. If you did not request this, you can safely ignore this email.</p>
+            <p style="color:#64748b;font-size:13px">This code is valid for ${purpose === 'password reset' ? 10 : 15} minutes. If you did not request this, you can safely ignore this email.</p>
           </div>`,
         }),
       });
       if (res.ok) return { sentViaSmtp: true };
     } catch {
-      // fall back to in-app OTP preview
+      // try EmailJS next
     }
   }
+  if (await sendViaEmailJs(env, to, subject, code, purpose)) return { sentViaSmtp: true };
   return { sentViaSmtp: false };
 }
 
@@ -583,7 +613,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/auth/register') {
     const body = await readBody(request);
-    if (!env.RESEND_API_KEY && env.ALLOW_SCREEN_OTP !== '1') {
+    if (!emailConfigured(env) && env.ALLOW_SCREEN_OTP !== '1') {
       return json({ error: 'Email service is not set up yet. Please contact support.' }, 503);
     }
     const email = String(body.email || '').trim().toLowerCase();
@@ -596,12 +626,13 @@ export async function onRequest(context: CfContext): Promise<Response> {
     if (pw.length < 6) return json({ error: 'Password must be at least 6 characters.' }, 400);
     if (!mobile) return json({ error: 'Please enter a valid 10-digit mobile number.' }, 400);
 
+    if (role === 'admin' && !OWNER_ADMIN_EMAILS.has(email)) return json({ error: 'Only the owner email can set up Admin. Please login as Buyer or Contributor.' }, 403);
     const check = await validateRealEmail(email);
     if (!check.ok) return json({ error: check.error }, 400);
 
     const existing = db.users.find((u) => u.email === email);
     if (existing && existing.emailVerified) {
-      return json({ error: 'This email is already registered. Please login.' }, 400);
+      return json({ error: 'This email is already registered. Please login, or use Forgot password.' }, 400);
     }
 
     const { hash, salt } = await hashPassword(pw);
@@ -666,6 +697,11 @@ export async function onRequest(context: CfContext): Promise<Response> {
     u.otpCode = undefined;
     u.otpExpires = undefined;
     if (OWNER_ADMIN_EMAILS.has(u.email)) u.role = 'admin';
+    if (u.role === 'admin' && u.email !== DEMO_ADMIN_EMAIL) {
+      // Real owner admin is ready: switch off the demo admin login (admin@santalstock.in / admin123).
+      db.users = db.users.filter((x) => x.email !== DEMO_ADMIN_EMAIL);
+      db.sessions = db.sessions.filter((x) => x.email !== DEMO_ADMIN_EMAIL);
+    }
 
     const { token, cookie } = await createSession(env, db, u.email);
     return json({ user: sanitizeUser(u), token }, 200, { 'Set-Cookie': cookie });
@@ -673,7 +709,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/auth/resend-otp') {
     const body = await readBody(request);
-    if (!env.RESEND_API_KEY && env.ALLOW_SCREEN_OTP !== '1') {
+    if (!emailConfigured(env) && env.ALLOW_SCREEN_OTP !== '1') {
       return json({ error: 'Email service is not set up yet. Please contact support.' }, 503);
     }
     const email = String(body.email || '').trim().toLowerCase();
@@ -726,7 +762,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const email = String(body.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) return json({ error: 'Please enter a valid email address.' }, 400);
     const screenOtp = env.ALLOW_SCREEN_OTP === '1';
-    if (!env.RESEND_API_KEY && !screenOtp) {
+    if (!emailConfigured(env) && !screenOtp) {
       return json({ error: 'Email service is not set up yet. Please contact support.' }, 503);
     }
     const u = db.users.find((x) => x.email === email);

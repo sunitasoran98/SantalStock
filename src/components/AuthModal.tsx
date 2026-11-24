@@ -85,7 +85,6 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
   function switchPortal(k: AuthPortal) {
     setPortal(k);
     setError('');
-    if (k === 'admin' && mode === 'register') setMode('login');
   }
 
   function finish(u: User, token: string, msg: string) {
@@ -161,7 +160,7 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
         message?: string;
       }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, email, mobile, password, role: portal === 'contributor' ? 'contributor' : 'buyer' }),
+        body: JSON.stringify({ name, email, mobile, password, role: portal }),
       });
       setEmail(res.email);
       setDeliveryInfo({ sentViaSmtp: res.sentViaSmtp, previewCode: res.previewCode, message: res.message });
@@ -255,12 +254,12 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
 
   const title =
     mode === 'login' ? `${P.label} Login` :
-    mode === 'register' ? `Create ${P.label} account` :
+    mode === 'register' ? (portal === 'admin' ? 'Admin first-time setup' : `Create ${P.label} account`) :
     mode === 'verify' ? 'Verify your email' :
     mode === 'forgot' ? 'Forgot password' : 'Set a new password';
   const sub =
     mode === 'login' ? P.sub :
-    mode === 'register' ? 'Use a real email. We send a 6-digit code to verify it.' :
+    mode === 'register' ? (portal === 'admin' ? 'Only the owner email can become Admin. OTP goes to that email.' : 'Use a real email. We send a 6-digit code to verify it.') :
     mode === 'verify' ? `Enter the 6-digit code sent to ${email}` :
     mode === 'forgot' ? 'We will email you a 6-digit recovery code.' : `Reset password for ${email}`;
 
@@ -390,7 +389,10 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
                 </p>
               )}
               {portal === 'admin' && (
-                <p className="text-center text-[12px] text-[#8a93a6] m-0 pt-1">Admin accounts are created by the site owner only.</p>
+                <p className="text-center text-[12.5px] text-[#5c6170] m-0 pt-1">
+                  First time Admin?{' '}
+                  <button type="button" onClick={() => { setError(''); setMode('register'); }} className={link}>Set admin password</button>
+                </p>
               )}
             </form>
           )}
@@ -417,7 +419,7 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
                 <input type={showPw ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Type password again" className={`${inputCls} ${confirmPw && confirmPw !== password ? '!border-[#d6262f]' : ''}`} />
               </Field>
               <button type="submit" disabled={loading} className={primary}>
-                {loading ? 'Sending code…' : `Sign up as ${P.label}`}
+                {loading ? 'Sending code…' : portal === 'admin' ? 'Send OTP & set password' : `Sign up as ${P.label}`}
               </button>
               <p className="text-center text-[12.5px] text-[#5c6170] m-0 pt-1">
                 Already have an account?{' '}
