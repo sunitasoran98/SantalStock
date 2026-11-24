@@ -32,6 +32,10 @@ This project is pre-configured for **Cloudflare Pages** with:
      - **R2 bucket**: `santalstock-images`
    - Redeploy. Pehle se KV me padi photos pehli request par apne aap R2 me shift ho jaati hain.
    - Preview photo sabke liye khuli hai. Full-size file (`/api/img/full/...`) sirf admin, photo ke owner, ya paid order wale buyer ko milti hai.
+5c. **Duplicate photo detection (3 layer)**:
+   - Layer 1 Exact (same file) aur Layer 2 Edited (resize, compress, filter, halka crop, mirror) apne aap chalte hain, kuch setup nahi.
+   - Layer 3 Internet: Admin > Review me har photo par Google Lens, TinEye, Bing, Yandex buttons (R2 chalu hona chahiye).
+   - Optional auto internet check: [SerpApi](https://serpapi.com) key lo, phir Pages -> Settings -> Variables and Secrets me `SERPAPI_KEY` (Secret) add karo. Har nayi upload par Google Lens exact-match search apne aap chalegi; har search SerpApi ka 1 credit leta hai.
 6. **Optional — Real Inbox Email OTP Delivery**:
    - Sign up for a free [Resend](https://resend.com) API key.
    - Open your Pages project -> **Settings** -> **Variables and Secrets** and add:

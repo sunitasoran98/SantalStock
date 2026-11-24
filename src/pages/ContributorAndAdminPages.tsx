@@ -3,6 +3,8 @@ import { Pencil, Trash2, Plus, Download, RotateCcw, Upload, GitBranch } from 'lu
 import { GitHubSourcePanel } from '../components/GitHubSourcePanel';
 import { thumbUrl, tr } from '../data/defaults';
 import { api } from '../lib/api';
+import { fingerprintFile, type ImageFingerprint } from '../lib/imageFingerprint';
+import { AdminDupPanel, UploadDupStatus, type DupMatch, type DupState } from '../components/DuplicateCheck';
 import type { AdminEditTarget, Asset, LangCode, Order, Payout, SiteConfig, User } from '../types';
 
 function readImageForUpload(file: File): Promise<{ w: number; h: number; prevUrl: string; fullUrl: string }> {
@@ -77,6 +79,9 @@ export function ContributorPage({
   const [evdate, setEvdate] = useState('');
   const [place, setPlace] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [fp, setFp] = useState<ImageFingerprint | null>(null);
+  const [dup, setDup] = useState<DupState>({ state: 'idle' });
+  const dupBlocked = dup.state === 'done' && dup.matches.some((m) => m.kind === 'exact');
 
   const [upi, setUpi] = useState(user?.payout?.upi || '');
   const [pan, setPan] = useState(user?.payout?.pan || '');
@@ -142,6 +147,7 @@ export function ContributorPage({
     if (!upImg) return toast('Pehle photo chuniye');
     const kwList = kw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
     if (kwList.length < 5) return toast('Kam se kam 5 keywords likhein');
+    if (dupBlocked) return toast('Ye photo pehle se SantalStock par hai');
     setSubmitting(true);
     try {
       await api('/api/assets', {
@@ -161,10 +167,13 @@ export function ContributorPage({
           h: upImg.h,
           prevUrl: upImg.prevUrl,
           fullUrl: upImg.fullUrl,
+          ...(fp || {}),
         }),
       });
       await onRefresh();
       setUpImg(null);
+      setFp(null);
+      setDup({ state: 'idle' });
       setTitle('');
       setDesc('');
       setKw('');
@@ -232,8 +241,18 @@ export function ContributorPage({
                 onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (!f) return;
-                  const res = await readImageForUpload(f);
+                  setDup({ state: 'checking' });
+                  setFp(null);
+                  const [res, print] = await Promise.all([readImageForUpload(f), fingerprintFile(f).catch(() => null)]);
                   setUpImg({ ...res, name: f.name });
+                  setFp(print);
+                  if (!print) return setDup({ state: 'error' });
+                  try {
+                    const r = await api<{ matches: DupMatch[] }>('/api/assets/check-duplicate', { method: 'POST', body: JSON.stringify(print) });
+                    setDup({ state: 'done', matches: r.matches || [] });
+                  } catch {
+                    setDup({ state: 'error' });
+                  }
                 }}
               />
               {upImg ? (
@@ -249,6 +268,7 @@ export function ContributorPage({
                 </div>
               )}
             </label>
+            <UploadDupStatus dup={dup} />
 
             <div>
               <label className="block text-sm font-semibold mb-1">Image Title</label>
@@ -321,7 +341,7 @@ export function ContributorPage({
             </label>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || dupBlocked || dup.state === 'checking'}
               className="w-full py-2.5 rounded-lg bg-[#d6262f] text-white font-bold text-sm cursor-pointer disabled:opacity-50"
             >
               {submitting ? 'Uploading...' : user.role === 'admin' ? 'Add & Publish Photo' : 'Review ke liye bhejein'}
@@ -608,6 +628,7 @@ export function AdminDashboard({
                   <p className="text-xs text-[#5c6170]">
                     <b>Category:</b> {a.cat} · <b>Keywords:</b> {(a.kw || []).join(', ')}
                   </p>
+                  <AdminDupPanel asset={a} assets={assets} onRefresh={onRefresh} toast={toast} />
                   <div className="flex flex-wrap gap-2 mt-3">
                     <button type="button" onClick={() => moderate(a.id, 'approved')} className="px-3.5 py-1.5 rounded-lg bg-[#17803d] text-white text-xs font-bold cursor-pointer">✓ Approve</button>
                     <button type="button" onClick={() => onAdminEdit({ section: 'editPhoto', itemId: a.id })} className="px-3.5 py-1.5 rounded-lg border border-[#d9dbe1] bg-white text-[#011f43] text-xs font-bold cursor-pointer">✎ Edit</button>

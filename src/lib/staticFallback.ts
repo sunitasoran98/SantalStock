@@ -7,6 +7,7 @@ import {
   validateGitHubRepoConfig,
 } from './githubSync';
 import { buildZip } from './zipBuilder';
+import { cleanFingerprint, findDuplicates } from './dupMatch';
 import type { Asset, GitHubSyncConfig, Order, Payout, SiteConfig, User, UserRole } from '../types';
 
 interface StoredUser extends User {
@@ -474,9 +475,28 @@ export async function handleStaticFallback<T>(
     return { siteConfig: db.siteConfig } as T;
   }
 
+  if (method === 'POST' && pathname === '/api/assets/check-duplicate') {
+    const u = getAuth();
+    if (!u || !['contributor', 'admin'].includes(u.role)) throw new Error('Contributor or Admin account required.');
+    const hits = findDuplicates(cleanFingerprint(body), db.assets.filter((a) => a.status !== 'rejected'));
+    return {
+      matches: hits.map((h) => {
+        const a = db.assets.find((x) => x.id === h.id)!;
+        const visible = u.role === 'admin' || a.owner === u.email || a.status === 'approved';
+        return { ...h, mine: a.owner === u.email, title: visible ? a.title : '', thumb: visible ? a.prevUrl || '' : '', status: a.status };
+      }),
+    } as T;
+  }
+
   if (method === 'POST' && pathname === '/api/assets') {
     const u = getAuth();
     if (!u || !['contributor', 'admin'].includes(u.role)) throw new Error('Contributor or Admin account required.');
+    const fp = cleanFingerprint(body);
+    const dupHits = findDuplicates(fp, db.assets.filter((a) => a.status !== 'rejected'));
+    const exactHit = dupHits.find((h) => h.kind === 'exact');
+    if (exactHit && !(u.role === 'admin' && body.force === true)) {
+      throw new Error(`Ye photo pehle se SantalStock par hai (${exactHit.id}). Duplicate upload allowed nahi hai.`);
+    }
     const asset: Asset = {
       id: 'SS' + (5000 + db.assets.length + Math.floor(Math.random() * 90000)),
       title: String(body.title || 'Untitled Photo').trim().slice(0, 120),
@@ -499,6 +519,10 @@ export async function handleStaticFallback<T>(
       place: String(body.place || '').trim(),
       prevUrl: String(body.prevUrl || ''),
       fullUrl: String(body.fullUrl || body.prevUrl || ''),
+      ...fp.sha256 ? { sha256: fp.sha256 } : {},
+      ...fp.phash ? { phash: fp.phash } : {},
+      ...fp.dhash ? { dhash: fp.dhash } : {},
+      ...dupHits.length ? { dup: dupHits } : {},
     };
     db.assets.unshift(asset);
     saveLocalDb(db);

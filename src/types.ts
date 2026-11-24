@@ -45,6 +45,12 @@ export interface Asset {
   reason?: string;
   prevUrl?: string;
   fullUrl?: string;
+  /* duplicate detection */
+  sha256?: string;
+  phash?: string;
+  dhash?: string;
+  dup?: { id: string; kind: 'exact' | 'similar'; score: number }[];
+  web?: { checked: string; count: number; links: { title: string; url: string; source?: string }[]; error?: string };
 }
 
 export interface CartItem {

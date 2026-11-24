@@ -8,6 +8,7 @@ import {
   validateGitHubRepoConfig,
 } from '../../src/lib/githubSync';
 import { buildZip } from '../../src/lib/zipBuilder';
+import { cleanFingerprint, findDuplicates } from '../../src/lib/dupMatch';
 import type { Asset, GitHubSyncConfig, Order, Payout, SiteConfig, User, UserRole } from '../../src/types';
 
 /* Minimal Cloudflare Pages Function ambient types (zero external @cloudflare/workers-types needed) */
@@ -30,6 +31,7 @@ interface R2BucketLike {
 interface CfEnv {
   SANTALSTOCK_KV?: KVNamespaceLike;
   SANTALSTOCK_R2?: R2BucketLike;
+  SERPAPI_KEY?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   GITHUB_TOKEN?: string;
@@ -42,6 +44,7 @@ interface CfContext {
   request: Request;
   env: CfEnv;
   params: { path?: string | string[] };
+  waitUntil?: (p: Promise<unknown>) => void;
 }
 
 interface StoredUser extends User {
@@ -477,6 +480,49 @@ async function serveImage(env: CfEnv, key: string, publicCache: boolean): Promis
   });
 }
 
+/* ================= DUPLICATE DETECTION: LAYER 3 (INTERNET) ================= */
+type WebCheck = NonNullable<Asset['web']>;
+
+async function webReverseSearch(env: CfEnv, absUrl: string, ownHost: string): Promise<WebCheck> {
+  const checked = new Date().toISOString();
+  if (!env.SERPAPI_KEY) return { checked, count: 0, links: [], error: 'SERPAPI_KEY not set' };
+  try {
+    const q = new URLSearchParams({ engine: 'google_lens', type: 'exact_matches', url: absUrl, api_key: env.SERPAPI_KEY });
+    const res = await fetch(`https://serpapi.com/search.json?${q}`);
+    const j = (await res.json().catch(() => ({}))) as { error?: string; exact_matches?: unknown[]; visual_matches?: unknown[] };
+    if (j.error) return { checked, count: 0, links: [], error: String(j.error).slice(0, 200) };
+    const arr = (j.exact_matches || j.visual_matches || []) as { title?: string; link?: string; source?: string }[];
+    const ext = arr.filter((m) => {
+      try {
+        return !!m.link && new URL(m.link).hostname !== ownHost;
+      } catch {
+        return false;
+      }
+    });
+    return {
+      checked,
+      count: ext.length,
+      links: ext.slice(0, 5).map((m) => ({ title: String(m.title || m.link).slice(0, 140), url: String(m.link), source: m.source ? String(m.source) : undefined })),
+    };
+  } catch (e) {
+    return { checked, count: 0, links: [], error: (e as Error).message.slice(0, 200) };
+  }
+}
+
+async function runWebCheck(env: CfEnv, origin: string, id: string): Promise<WebCheck | null> {
+  const db = await loadDb(env);
+  const a = db.assets.find((x) => x.id === id);
+  if (!a || !a.prevUrl || !a.prevUrl.startsWith('/api/img/')) return null;
+  const web = await webReverseSearch(env, origin + a.prevUrl, new URL(origin).hostname);
+  const fresh = await loadDb(env);
+  const rec = fresh.assets.find((x) => x.id === id);
+  if (rec) {
+    rec.web = web;
+    await saveDb(env, fresh);
+  }
+  return web;
+}
+
 export async function onRequest(context: CfContext): Promise<Response> {
   const { request, env } = context;
   const method = request.method.toUpperCase();
@@ -520,6 +566,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       smtpConfigured: Boolean(env.RESEND_API_KEY),
       cloudflareKv: Boolean(env.SANTALSTOCK_KV),
       cloudflareR2: Boolean(env.SANTALSTOCK_R2),
+      webCheck: Boolean(env.SERPAPI_KEY),
     });
   }
 
@@ -778,12 +825,32 @@ export async function onRequest(context: CfContext): Promise<Response> {
   }
 
   /* ================= ASSETS CRUD ================= */
+  if (method === 'POST' && pathname === '/api/assets/check-duplicate') {
+    const u = getAuthUser(request, db);
+    if (!u || !['contributor', 'admin'].includes(u.role)) return json({ error: 'Contributor or Admin account required.' }, 403);
+    const fp = cleanFingerprint(await readBody(request));
+    const hits = findDuplicates(fp, db.assets.filter((a) => a.status !== 'rejected'));
+    return json({
+      matches: hits.map((h) => {
+        const a = db.assets.find((x) => x.id === h.id)!;
+        const visible = u.role === 'admin' || a.owner === u.email || a.status === 'approved';
+        return { ...h, mine: a.owner === u.email, title: visible ? a.title : '', thumb: visible ? a.prevUrl || '' : '', status: a.status };
+      }),
+    });
+  }
+
   if (method === 'POST' && pathname === '/api/assets') {
     const u = getAuthUser(request, db);
     if (!u || !['contributor', 'admin'].includes(u.role)) {
       return json({ error: 'Contributor or Admin account required.' }, 403);
     }
     const b = await readBody(request);
+    const fp = cleanFingerprint(b);
+    const dupHits = findDuplicates(fp, db.assets.filter((a) => a.status !== 'rejected'));
+    const exactHit = dupHits.find((h) => h.kind === 'exact');
+    if (exactHit && !(u.role === 'admin' && b.force === true)) {
+      return json({ error: `Ye photo pehle se SantalStock par hai (${exactHit.id}). Duplicate upload allowed nahi hai.`, duplicate: exactHit }, 409);
+    }
     const arr = new Uint32Array(1);
     crypto.getRandomValues(arr);
     const id = 'SS' + (5000 + db.assets.length + (100 + (arr[0] % 99899)));
@@ -818,9 +885,18 @@ export async function onRequest(context: CfContext): Promise<Response> {
       place: String(b.place || '').trim(),
       prevUrl: await storeImage(env, 'prev', id, String(b.prevUrl || '')),
       fullUrl: await storeImage(env, 'full', id, String(b.fullUrl || b.prevUrl || '')),
+      ...fp.sha256 ? { sha256: fp.sha256 } : {},
+      ...fp.phash ? { phash: fp.phash } : {},
+      ...fp.dhash ? { dhash: fp.dhash } : {},
+      ...dupHits.length ? { dup: dupHits } : {},
     };
     db.assets.unshift(asset);
     await saveDb(env, db);
+    if (env.SERPAPI_KEY && asset.prevUrl?.startsWith('/api/img/')) {
+      const job = runWebCheck(env, url.origin, asset.id).catch(() => null);
+      if (context.waitUntil) context.waitUntil(job);
+      else await job;
+    }
     if (u.role === 'admin') await maybeAutoSyncGitHub(env, db, `Add photo ${asset.id}`);
     return json({ asset });
   }
@@ -856,6 +932,14 @@ export async function onRequest(context: CfContext): Promise<Response> {
       rec.h = Number(b.h) || rec.h;
       rec.src = 'upload';
       delete rec.pid;
+      const fp = cleanFingerprint(b);
+      if (fp.sha256) rec.sha256 = fp.sha256;
+      if (fp.phash) rec.phash = fp.phash;
+      if (fp.dhash) rec.dhash = fp.dhash;
+      const hits = findDuplicates(fp, db.assets.filter((a) => a.status !== 'rejected'), rec.id);
+      if (hits.length) rec.dup = hits;
+      else delete rec.dup;
+      delete rec.web;
     }
     await saveDb(env, db);
     await maybeAutoSyncGitHub(env, db, `Update photo ${rec.id}`);
@@ -877,6 +961,16 @@ export async function onRequest(context: CfContext): Promise<Response> {
     await saveDb(env, db);
     if (u.role === 'admin') await maybeAutoSyncGitHub(env, db, `Delete photo ${id}`);
     return json({ ok: true });
+  }
+
+  const webMatch = pathname.match(/^\/api\/assets\/([^/]+)\/web-check$/);
+  if (method === 'POST' && webMatch) {
+    const u = getAuthUser(request, db);
+    if (!u || u.role !== 'admin') return json({ error: 'Admin access required.' }, 403);
+    if (!env.SERPAPI_KEY) return json({ error: 'Auto internet check ke liye Cloudflare me SERPAPI_KEY daalein. Tab tak manual buttons use karein.' }, 400);
+    const web = await runWebCheck(env, url.origin, decodeURIComponent(webMatch[1]));
+    if (!web) return json({ error: 'Is photo ka public preview (R2) nahi hai.' }, 400);
+    return json({ web });
   }
 
   /* ================= ORDERS & VERIFY ================= */
