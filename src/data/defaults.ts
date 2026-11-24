@@ -406,7 +406,7 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   pages: {
     about: {
       title: 'About SantalStock',
-      body: 'SantalStock is a stock photo marketplace for the life, culture and nature of Santal country, run by BOSC (Baski Online Service Center) from Godda, Jharkhand. We help local photographers earn from their work and help publishers, brands and educators find authentic images with affordable minimum pricing and clear licenses.',
+      body: 'SantalStock is a stock photo marketplace for the life, culture and nature of Santal country, run by BOSC (BASKI ONLINE SERVICE CENTER) from Godda, Jharkhand. We help local photographers earn from their work and help publishers, brands and educators find authentic images with affordable minimum pricing and clear licenses.',
     },
     privacy: {
       title: 'Privacy Policy',
@@ -431,7 +431,7 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   contact: {
     email: 'support@santalstock.in',
     location: 'Godda, Jharkhand, India',
-    venture: 'A BOSC (Baski Online Service Center) venture',
+    venture: 'A BOSC (BASKI ONLINE SERVICE CENTER) venture',
   },
   footer: {
     newsletterTitle: 'SantalStock',

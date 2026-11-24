@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ArrowUpToLine, ArrowDownToLine, ChevronsLeft, ChevronsRight, Pause, Play, Settings2, Square, Volume1, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pause, Play, Settings2, Square, X } from 'lucide-react';
 
 /* SantalStock's own reader mark: an open book with sound waves */
 function ReaderMark({ className = '', active = false }: { className?: string; active?: boolean }) {
@@ -216,100 +216,60 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
 
   return (
     <div className="noprint">
-      {/* Compact reader bar: [🔊 सुनें] [« Home] [<] [>] [End »] [⚙] */}
-      <div className="h-[60px]" aria-hidden />
-      <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur border-t border-[#e1e5ec] shadow-[0_-6px_18px_-10px_rgba(1,31,67,0.3)]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div className="max-w-5xl mx-auto h-[60px] px-2 flex items-center justify-between gap-1">
-        {/* Page: top / bottom */}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            aria-label={tr(lang, 'pgTop')}
-            title={tr(lang, 'pgTop')}
-            className="w-9 h-10 sm:w-10 rounded-xl bg-[#eef8f1] border border-[#cfe9d8] text-[#1b8a4b] flex items-center justify-center cursor-pointer hover:bg-[#e0f3e7]"
-          >
-            <ArrowUpToLine className="w-5 h-5" strokeWidth={2.5} aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}
-            aria-label={tr(lang, 'pgEnd')}
-            title={tr(lang, 'pgEnd')}
-            className="w-9 h-10 sm:w-10 rounded-xl bg-[#eef8f1] border border-[#cfe9d8] text-[#1b8a4b] flex items-center justify-center cursor-pointer hover:bg-[#e0f3e7]"
-          >
-            <ArrowDownToLine className="w-5 h-5" strokeWidth={2.5} aria-hidden />
-          </button>
-        </div>
-        {/* Reader */}
-        <div className="flex items-center gap-1">
+      {/* One floating dock: [‹ Home] [reader icon] [settings] [End ›] */}
+      <div
+        className="fixed right-3 sm:right-5 bottom-3 sm:bottom-5 z-40 flex items-center gap-0.5 p-1 rounded-full bg-[#011f43]/95 backdrop-blur text-white shadow-[0_12px_32px_-10px_rgba(1,31,67,0.6)] ring-1 ring-white/10"
+        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        role="toolbar"
+        aria-label="Page tools"
+      >
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label={tr(lang, 'pgTop')}
+          title={`${tr(lang, 'pgTop')} · Home`}
+          className="h-9 pl-2 pr-3 rounded-full flex items-center gap-1 text-[12px] font-semibold tracking-wide cursor-pointer hover:bg-white/10 transition"
+        >
+          <ChevronLeft className="w-4 h-4" strokeWidth={2.5} aria-hidden /> Home
+        </button>
+        <span className="w-px h-5 bg-white/15" aria-hidden />
         <button
           type="button"
           onClick={() => (state === 'play' ? pause() : startReading())}
-          aria-label={state === 'play' ? tr(lang, 'pause') : tr(lang, 'listen')}
-          title={tr(lang, 'reader')}
-          className={`h-10 pl-2.5 pr-3 max-[374px]:pr-2.5 rounded-xl border flex items-center gap-1.5 text-[15px] font-bold cursor-pointer transition ${
-            state === 'play'
-              ? 'bg-[#8a4b00] border-[#8a4b00] text-white'
-              : 'bg-[#fff8e1] border-[#f5c451] text-[#8a4b00] hover:bg-[#ffefc2]'
+          aria-label={state === 'play' ? tr(lang, 'pause') : state === 'paused' ? tr(lang, 'resume') : tr(lang, 'listen')}
+          title={`${tr(lang, 'reader')} · ${state === 'play' ? tr(lang, 'pause') : tr(lang, 'listen')}`}
+          aria-pressed={state === 'play'}
+          className={`relative w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition ${
+            state === 'play' ? 'bg-[#d6262f] text-white' : 'hover:bg-white/10 text-[#ffd479]'
           }`}
         >
-          {state === 'play' ? <Pause className="w-4.5 h-4.5" aria-hidden /> : <Volume1 className="w-5 h-5" aria-hidden />}
-          <span className="max-[374px]:hidden">{state === 'play' ? tr(lang, 'pause') : state === 'paused' ? tr(lang, 'resume') : tr(lang, 'listen')}</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => jump('first')}
-          aria-label={tr(lang, 'rdFirst')}
-          title={`${tr(lang, 'rdFirst')} · Alt+Home`}
-          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#1f6fd1] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
-        >
-          <ChevronsLeft className="w-5 h-5" strokeWidth={2.75} aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => jump('prev')}
-          aria-label={tr(lang, 'rdPrev')}
-          title={`${tr(lang, 'rdPrev')} · Alt+←`}
-          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#1f6fd1] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
-        >
-          <ChevronLeft className="w-5 h-5" strokeWidth={2.75} aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => jump('next')}
-          aria-label={tr(lang, 'rdNext')}
-          title={`${tr(lang, 'rdNext')} · Alt+→`}
-          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#e0730f] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
-        >
-          <ChevronRight className="w-5 h-5" strokeWidth={2.75} aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => jump('last')}
-          aria-label={tr(lang, 'rdLast')}
-          title={`${tr(lang, 'rdLast')} · Alt+End`}
-          className="w-9 h-10 sm:w-10 rounded-xl bg-[#f4f6fa] border border-[#e1e5ec] text-[#e0730f] flex items-center justify-center cursor-pointer hover:bg-[#e9eef7]"
-        >
-          <ChevronsRight className="w-5 h-5" strokeWidth={2.75} aria-hidden />
+          {state === 'play' ? <Pause className="w-4 h-4" aria-hidden /> : <ReaderMark className="w-[18px] h-[18px]" />}
+          {state === 'paused' && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#ffd479]" aria-hidden />}
         </button>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label={tr(lang, 'reader')}
+          aria-expanded={open}
           title={tr(lang, 'reader')}
-          className={`w-9 h-10 sm:w-10 rounded-xl border flex items-center justify-center cursor-pointer ${
-            open ? 'bg-[#011f43] border-[#011f43] text-white' : 'bg-[#f4f6fa] border-[#e1e5ec] text-[#011f43] hover:bg-[#e9eef7]'
-          }`}
+          className={`w-7 h-9 rounded-full flex items-center justify-center cursor-pointer transition ${open ? 'bg-white/15' : 'hover:bg-white/10 text-white/70'}`}
         >
-          <Settings2 className="w-4.5 h-4.5" aria-hidden />
+          <Settings2 className="w-3.5 h-3.5" aria-hidden />
         </button>
-        </div>
-      </div>
+        <span className="w-px h-5 bg-white/15" aria-hidden />
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}
+          aria-label={tr(lang, 'pgEnd')}
+          title={`${tr(lang, 'pgEnd')} · End`}
+          className="h-9 pl-3 pr-2 rounded-full flex items-center gap-1 text-[12px] font-semibold tracking-wide cursor-pointer hover:bg-white/10 transition"
+        >
+          End <ChevronRight className="w-4 h-4" strokeWidth={2.5} aria-hidden />
+        </button>
       </div>
 
       {open && (
-        <div className="fixed right-3 bottom-[72px] z-40 bg-white/95 backdrop-blur border border-[#d9dbe1] rounded-2xl shadow-[0_24px_48px_-16px_rgba(1,31,67,0.45)] p-4 w-[300px] max-w-[calc(100vw-32px)]">
+        <div className="fixed right-3 sm:right-5 bottom-[64px] sm:bottom-[72px] z-40 bg-white/95 backdrop-blur border border-[#d9dbe1] rounded-2xl shadow-[0_24px_48px_-16px_rgba(1,31,67,0.45)] p-4 w-[300px] max-w-[calc(100vw-32px)]">
           <div className="flex items-center justify-between mb-2">
             <h4 className="m-0 font-bold text-sm text-[#011f43] flex items-center gap-2"><span className="w-7 h-7 rounded-lg bg-[#011f43] text-white flex items-center justify-center"><ReaderMark className="w-4.5 h-4.5" active={state === 'play'} /></span> {tr(lang, 'reader')}</h4>
             <button
