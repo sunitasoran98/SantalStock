@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Pause, Play, Settings2, Square, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, MessageSquarePlus, Pause, Play, Settings2, Square, X } from 'lucide-react';
+import { openFeedback } from './FeedbackModal';
 
 /* SantalStock's own reader mark: an open book with sound waves */
 function ReaderMark({ className = '', active = false }: { className?: string; active?: boolean }) {
@@ -212,14 +213,36 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
     };
   }, []);
 
+  // Lift the dock above the footer's legal bar so it never covers text
+  const [lift, setLift] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const calc = () => {
+      raf = 0;
+      const el = document.getElementById('ss-legal');
+      if (!el) return setLift(0);
+      const over = window.innerHeight - el.getBoundingClientRect().top;
+      setLift(over > 0 ? Math.round(over) : 0);
+    };
+    const on = () => { if (!raf) raf = requestAnimationFrame(calc); };
+    calc();
+    window.addEventListener('scroll', on, { passive: true });
+    window.addEventListener('resize', on);
+    return () => {
+      window.removeEventListener('scroll', on);
+      window.removeEventListener('resize', on);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const pct = parts.length ? Math.round((idx / parts.length) * 100) : 0;
 
   return (
     <div className="noprint">
       {/* One floating dock: [‹ Home] [reader icon] [settings] [End ›] */}
       <div
-        className="fixed right-3 sm:right-5 bottom-3 sm:bottom-5 z-40 flex items-center gap-0.5 p-1 rounded-full bg-[#011f43]/95 backdrop-blur text-white shadow-[0_12px_32px_-10px_rgba(1,31,67,0.6)] ring-1 ring-white/10"
-        style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        className="fixed right-3 sm:right-5 bottom-3 sm:bottom-5 z-40 transition-transform duration-150 flex items-center gap-0.5 p-1 rounded-full bg-[#011f43]/95 backdrop-blur text-white shadow-[0_12px_32px_-10px_rgba(1,31,67,0.6)] ring-1 ring-white/10"
+        style={{ marginBottom: 'env(safe-area-inset-bottom)', transform: lift ? `translateY(-${lift}px)` : undefined }}
         role="toolbar"
         aria-label="Page tools"
       >
@@ -230,7 +253,7 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
           title={`${tr(lang, 'pgTop')} · Home`}
           className="h-9 pl-2 pr-3 rounded-full flex items-center gap-1 text-[12px] font-semibold tracking-wide cursor-pointer hover:bg-white/10 transition"
         >
-          <ChevronLeft className="w-4 h-4" strokeWidth={2.5} aria-hidden /> Home
+          <ChevronLeft className="w-4 h-4 text-[#8fd4ad]" strokeWidth={2.75} aria-hidden /> Home
         </button>
         <span className="w-px h-5 bg-white/15" aria-hidden />
         <button
@@ -252,9 +275,18 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
           aria-label={tr(lang, 'reader')}
           aria-expanded={open}
           title={tr(lang, 'reader')}
-          className={`w-7 h-9 rounded-full flex items-center justify-center cursor-pointer transition ${open ? 'bg-white/15' : 'hover:bg-white/10 text-white/70'}`}
+          className={`w-7 h-9 rounded-full flex items-center justify-center cursor-pointer transition ${open ? 'bg-white/15 text-[#8ec5ff]' : 'hover:bg-white/10 text-[#8ec5ff]'}`}
         >
           <Settings2 className="w-3.5 h-3.5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={openFeedback}
+          aria-label="Suggestion / Feedback"
+          title="Suggestion / Feedback"
+          className="w-7 h-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/10 text-[#ff9aa0] transition"
+        >
+          <MessageSquarePlus className="w-3.5 h-3.5" aria-hidden />
         </button>
         <span className="w-px h-5 bg-white/15" aria-hidden />
         <button
@@ -264,7 +296,7 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
           title={`${tr(lang, 'pgEnd')} · End`}
           className="h-9 pl-3 pr-2 rounded-full flex items-center gap-1 text-[12px] font-semibold tracking-wide cursor-pointer hover:bg-white/10 transition"
         >
-          End <ChevronRight className="w-4 h-4" strokeWidth={2.5} aria-hidden />
+          End <ChevronRight className="w-4 h-4 text-[#ffb37a]" strokeWidth={2.75} aria-hidden />
         </button>
       </div>
 

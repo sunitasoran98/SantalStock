@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Lock, Pencil } from 'lucide-react';
+import { Lock, Mail, MapPin, MessageSquarePlus, Pencil } from 'lucide-react';
+import { FeedbackModal, openFeedback } from './FeedbackModal';
 import { LANGS, tr } from '../data/defaults';
 import { api } from '../lib/api';
 import type { AdminEditTarget, LangCode, SiteConfig } from '../types';
@@ -13,6 +14,8 @@ interface FooterProps {
   onNavigate: (hash: string) => void;
   toast: (m: string) => void;
 }
+
+const SOCIAL_COLOR: Record<string, string> = { fb: '#1877F2', ig: '#E4405F', yt: '#FF0000', x: '#1D9BF0', wa: '#25D366' };
 
 const SOCIAL_ICONS: [string, string, string][] = [
   ['fb', 'Facebook', 'M14 8h3V4h-3c-2.8 0-4 1.7-4 4v2H7v4h3v8h4v-8h3l1-4h-4V8.5c0-.3.2-.5.5-.5z'],
@@ -100,7 +103,8 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
                   }}
                   aria-label={label}
                   title={label}
-                  className="w-9 h-9 rounded-full bg-white border border-[#d6deeb] text-[#011f43] flex items-center justify-center shadow-sm hover:bg-[#011f43] hover:text-white transition-colors"
+                  style={{ ['--b' as string]: SOCIAL_COLOR[key] } as React.CSSProperties}
+                  className="w-9 h-9 rounded-full bg-white border border-[#d6deeb] text-[var(--b)] flex items-center justify-center shadow-sm hover:bg-[var(--b)] hover:border-[var(--b)] hover:text-white transition-colors"
                 >
                   <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
                     <path d={d} />
@@ -108,16 +112,20 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
                 </a>
               ))}
             </div>
-            <p className="my-2 text-[#33405c]">
-              ✉ {siteConfig.contact.email}
-              <br />
-              📍 {siteConfig.contact.location}
-            </p>
+            <div className="my-2 flex flex-col gap-1.5 text-[#33405c]">
+              <a href={`mailto:${siteConfig.contact.email}`} className="inline-flex items-center gap-2 no-underline text-inherit hover:text-[#d6262f]">
+                <Mail className="w-4 h-4 text-[#d6262f]" aria-hidden /> {siteConfig.contact.email}
+              </a>
+              <span className="inline-flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#1b8a4b]" aria-hidden /> {siteConfig.contact.location}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
             <select
               aria-label={tr(lang, 'lang')}
               value={lang}
               onChange={(e) => onChangeLang(e.target.value as LangCode)}
-              className="mt-2 bg-white text-[#011f43] border border-[#c5cfe0] rounded-full px-3 py-1.5 text-xs font-semibold w-auto"
+              className="bg-white text-[#011f43] border border-[#c5cfe0] rounded-full px-3 py-1.5 text-xs font-semibold w-auto"
             >
               {LANGS.map((l) => (
                 <option key={l.k} value={l.k}>
@@ -125,6 +133,14 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={openFeedback}
+              className="inline-flex items-center gap-1.5 bg-white text-[#011f43] border border-[#c5cfe0] rounded-full px-3 py-1.5 text-xs font-semibold cursor-pointer hover:border-[#d6262f] hover:text-[#d6262f] transition-colors"
+            >
+              <MessageSquarePlus className="w-3.5 h-3.5 text-[#e0730f]" aria-hidden /> Suggestion / Feedback
+            </button>
+            </div>
           </div>
 
           {siteConfig.footer.columns.map((col) => (
@@ -152,29 +168,31 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
         </div>
       </div>
 
-      <div className="bg-[#011f43] text-[#c9d4e6] text-[12.5px]">
-        <div className="wrap pt-4 pb-[72px] grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] items-center gap-3 text-center lg:text-left">
-          <p className="m-0 leading-relaxed">
+      <div id="ss-legal" className="bg-[#011f43] text-[#c9d4e6] text-[12.5px]">
+        <div className="wrap py-4 flex flex-col lg:flex-row items-center justify-between gap-3">
+          <p className="m-0 text-center lg:text-left leading-relaxed">
             © {new Date().getFullYear()} <b className="text-white font-semibold">SantalStock</b>
-            <span className="mx-1.5 opacity-50">·</span>
-            {siteConfig.contact.venture.replace(/baski online service center/gi, 'BASKI ONLINE SERVICE CENTER')}
-            <span className="mx-1.5 opacity-50">·</span>
+            <span className="mx-2 text-white/30">|</span>
+            <span className="whitespace-nowrap">{siteConfig.contact.venture.replace(/baski online service center/gi, 'BASKI ONLINE SERVICE CENTER')}</span>
+            <span className="mx-2 text-white/30">|</span>
             {siteConfig.footer.rights}
           </p>
           <div className="flex items-center justify-center gap-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8fd4ad] mr-1">
+            <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#8fd4ad] mr-1">
               <Lock className="w-3 h-3" aria-hidden /> {tr(lang, 'secure')}
             </span>
             {siteConfig.footer.paymentMethods.map((pm) => (
               <span
                 key={pm}
-                className="inline-flex items-center h-6 px-2.5 rounded-md bg-white text-[#011f43] text-[10.5px] font-extrabold tracking-wide"
+                className="inline-flex items-center h-[22px] px-2 rounded-[5px] bg-white/[0.08] border border-white/15 text-white text-[10.5px] font-bold tracking-wide whitespace-nowrap"
               >
                 {pm}
               </span>
             ))}
           </div>
-          <p className="m-0 lg:text-right opacity-90">
+        </div>
+        <div className="border-t border-white/10">
+          <p className="wrap m-0 py-2.5 text-center text-[11.5px] text-[#9fb0cc]">
             {siteConfig.footer.madeWith.split('♥').map((part, i) => (
               <React.Fragment key={i}>
                 {i > 0 && <span className="text-[#ff5a63]" aria-label="love">♥</span>}
@@ -184,6 +202,7 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
           </p>
         </div>
       </div>
+      <FeedbackModal toast={toast} />
     </footer>
   );
 }

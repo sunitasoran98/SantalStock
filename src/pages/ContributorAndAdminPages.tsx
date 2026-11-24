@@ -590,7 +590,7 @@ export function AdminDashboard({
           ['orders', `Orders (${orders.length})${orders.some((o) => o.status === 'pending') ? ` · ${orders.filter((o) => o.status === 'pending').length} pending` : ''}`],
           ['payouts', `Payouts (${payouts.length})`],
           ['users', `Users (${users.length})`],
-          ['messages', `Messages (${messages.length})`],
+          ['messages', `Messages & Feedback (${messages.length})`],
           ['github', 'GitHub + Source ZIP'],
           ['settings', 'Settings & CMS'],
         ].map(([k, l]) => (

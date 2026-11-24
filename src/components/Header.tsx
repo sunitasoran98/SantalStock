@@ -164,7 +164,7 @@ export function Header({
             title="Dark mode"
             className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
-            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center text-lg shrink-0 transition-transform group-hover:-translate-y-0.5">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#fff4d6] text-[#b7791f] ring-1 ring-[#011f43]/10 flex items-center justify-center text-lg shrink-0 transition-transform group-hover:-translate-y-0.5">
               {dark ? '☀️' : '🌙'}
             </span>
             {!isCompact && (
@@ -180,7 +180,7 @@ export function Header({
             title="Text size"
             className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
-            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center text-sm font-extrabold shrink-0 transition-transform group-hover:-translate-y-0.5">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e8f0ff] text-[#1f6fd1] ring-1 ring-[#011f43]/10 flex items-center justify-center text-sm font-extrabold shrink-0 transition-transform group-hover:-translate-y-0.5">
               {['A', 'A+', 'A++'][fontSizeStep]}
             </span>
             {!isCompact && (
@@ -197,7 +197,7 @@ export function Header({
               title="Language"
               className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
             >
-              <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center text-base font-bold font-serif shrink-0 transition-transform group-hover:-translate-y-0.5">
+              <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e6f6ef] text-[#1b8a4b] ring-1 ring-[#011f43]/10 flex items-center justify-center text-base font-bold font-serif shrink-0 transition-transform group-hover:-translate-y-0.5">
                 {langShort}
               </span>
               {!isCompact && (
@@ -233,7 +233,7 @@ export function Header({
             title="About"
             className="hidden sm:flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
-            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center font-serif font-bold text-lg shrink-0 transition-transform group-hover:-translate-y-0.5">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#f1e9ff] text-[#6b46c1] ring-1 ring-[#011f43]/10 flex items-center justify-center font-serif font-bold text-lg shrink-0 transition-transform group-hover:-translate-y-0.5">
               i
             </span>
           </button>
@@ -244,7 +244,7 @@ export function Header({
             title="Advance search"
             className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
-            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e3f4f8] text-[#0e7490] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <SlidersHorizontal className="w-4 h-4" />
             </span>
             {!isCompact && (
@@ -276,7 +276,7 @@ export function Header({
             title="Lightbox"
             className="flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
-            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#ffe9ec] text-[#d6262f] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <Heart className="w-4 h-4" />
             </span>
           </button>
@@ -287,7 +287,7 @@ export function Header({
             title="Cart"
             className="relative flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
-            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#fff0e3] text-[#e0730f] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <ShoppingCart className="w-4 h-4" />
             </span>
             <span className="absolute -right-1 -top-1 bg-[#d6262f] text-white rounded-full text-[11px] font-bold min-w-[18px] h-[18px] px-1 flex items-center justify-center border-2 border-[#f5f8fd] tabular-nums">
@@ -303,7 +303,7 @@ export function Header({
                 title="Account"
                 className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
               >
-                <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
+                <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e8f0ff] text-[#1f6fd1] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
                   <UserIcon className="w-4 h-4" />
                 </span>
                 {!isCompact && (
@@ -325,7 +325,7 @@ export function Header({
                     title="Admin dashboard"
                     className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
                   >
-                    <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
+                    <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e6f6ef] text-[#1b8a4b] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
                       <Shield className="w-4 h-4" />
                     </span>
                     {!isCompact && (
@@ -359,7 +359,7 @@ export function Header({
               title="Sign in"
               className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
             >
-              <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#011f43] text-white flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
+              <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e8f0ff] text-[#1f6fd1] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
                 <Lock className="w-4 h-4" />
               </span>
               {!isCompact && (
