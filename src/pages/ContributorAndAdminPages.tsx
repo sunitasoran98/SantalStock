@@ -492,10 +492,10 @@ export function AdminDashboard({
     return (
       <section className="wrap py-16 text-center">
         <h2 className="dm text-3xl text-[#011f43]">Admin Access Required</h2>
-        <p className="text-sm text-[#5c6170]">Please sign in with an Admin email account.</p>
+        <p className="text-sm text-[#5c6170]">Please login with an Admin account.</p>
         {!user && (
           <button type="button" onClick={() => onOpenAuth('login')} className="mt-3 px-5 py-2.5 rounded-lg bg-[#011f43] text-white font-semibold cursor-pointer">
-            Sign in
+            Admin Login
           </button>
         )}
       </section>

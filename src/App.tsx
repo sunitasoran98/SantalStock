@@ -15,7 +15,8 @@ import { Footer } from './components/Footer';
 import { SearchCapsule } from './components/SearchCapsule';
 import { PhotoTile } from './components/PhotoTile';
 import { TextReader } from './components/TextReader';
-import { AuthModal } from './components/AuthModal';
+import type { AuthPortal } from './lib/portals';
+const AuthModal = React.lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
 import { AdminEditable } from './components/AdminEditable';
 import { AdminEditModal } from './components/AdminEditModal';
 import { AdminDock } from './components/AdminDock';
@@ -90,6 +91,7 @@ export default function App() {
   });
 
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
+  const [authPortal, setAuthPortal] = useState<AuthPortal>('buyer');
   const [adminMode, setAdminMode] = useState(false);
   const [adminEditTarget, setAdminEditTarget] = useState<AdminEditTarget | null>(null);
   const [toastMsg, setToastMsg] = useState<string>('');
@@ -814,7 +816,7 @@ export default function App() {
           onRemoveCart={(idx) => setCart((prev) => prev.filter((_, i) => i !== idx))}
           onClearCart={() => setCart([])}
           onNavigate={navigate}
-          onOpenAuth={(m) => setAuthModal(m || 'login')}
+          onOpenAuth={(m) => { setAuthPortal('buyer'); setAuthModal(m || 'login'); }}
           onOrderSuccess={async (ord) => {
             await fetchState();
             navigate(`#/order/${ord.id}`);
@@ -847,9 +849,9 @@ export default function App() {
       if (!user) {
         return (
           <section className="wrap py-16 text-center">
-            <h2 className="dm text-3xl text-[#011f43]">Sign in to My Account</h2>
-            <button type="button" onClick={() => setAuthModal('login')} className="mt-3 px-5 py-2.5 rounded-lg bg-[#011f43] text-white font-semibold cursor-pointer">
-              Sign in with Real Email
+            <h2 className="dm text-3xl text-[#011f43]">Login to My Account</h2>
+            <button type="button" onClick={() => setAuthModal('login')} className="mt-3 px-6 py-2.5 rounded-xl bg-[#1f6fd1] text-white font-semibold cursor-pointer hover:brightness-110">
+              Login
             </button>
           </section>
         );
@@ -1492,7 +1494,7 @@ export default function App() {
           siteConfig={siteConfig}
           money={money}
           onNavigate={navigate}
-          onOpenAuth={(m) => setAuthModal(m || 'register')}
+          onOpenAuth={(m) => { setAuthPortal('contributor'); setAuthModal(m || 'register'); }}
           onRefresh={fetchState}
           onDeleteAsset={handleDeletePhoto}
           toast={toast}
@@ -1517,7 +1519,7 @@ export default function App() {
           onToggleAdminMode={() => setAdminMode((v) => !v)}
           onAdminEdit={setAdminEditTarget}
           onNavigate={navigate}
-          onOpenAuth={(m) => setAuthModal(m || 'login')}
+          onOpenAuth={(m) => { setAuthPortal('admin'); setAuthModal(m || 'login'); }}
           onRefresh={fetchState}
           onSaveConfig={handleSaveConfig}
           onDeleteAsset={handleDeletePhoto}
@@ -1553,7 +1555,7 @@ export default function App() {
         searchLic={route.page === 'search' ? route.params.get('lic') || '' : ''}
         onSearch={handleSearchGo}
         onNavigate={navigate}
-        onOpenAuth={(m) => setAuthModal(m || 'login')}
+        onOpenAuth={(m, pt) => { if (pt) setAuthPortal(pt); setAuthModal(m || 'login'); }}
         adminMode={adminMode}
         onToggleAdminMode={() => {
           setAdminMode((v) => {
@@ -1589,8 +1591,10 @@ export default function App() {
       )}
 
       {authModal && (
+        <React.Suspense fallback={null}>
         <AuthModal
           initialMode={authModal}
+          initialPortal={authPortal}
           onClose={() => setAuthModal(null)}
           onSuccess={async (loggedUser) => {
             setAuthModal(null);
@@ -1599,6 +1603,7 @@ export default function App() {
           }}
           toast={toast}
         />
+        </React.Suspense>
       )}
 
       {adminEditTarget && user?.role === 'admin' && (

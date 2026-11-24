@@ -9,7 +9,9 @@ import {
   Wrench,
   Shield,
   Pencil,
+  ChevronDown,
 } from 'lucide-react';
+import { PORTALS, type AuthPortal } from '../lib/portals';
 import { getSantaliDateTime, LANGS, tr } from '../data/defaults';
 import { SearchCapsule } from './SearchCapsule';
 import type { AdminEditTarget, LangCode, SiteConfig, User } from '../types';
@@ -29,7 +31,7 @@ interface HeaderProps {
   searchLic: string;
   onSearch: (q: string, lic: string) => void;
   onNavigate: (hash: string) => void;
-  onOpenAuth: (mode?: 'login' | 'register') => void;
+  onOpenAuth: (mode?: 'login' | 'register', portal?: AuthPortal) => void;
   adminMode: boolean;
   onToggleAdminMode: () => void;
   onAdminEdit: (target: AdminEditTarget) => void;
@@ -60,6 +62,19 @@ export function Header({
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [sdt, setSdt] = useState(() => getSantaliDateTime(lang));
   const langRef = useRef<HTMLDivElement>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const loginRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!loginOpen) return;
+    const off = (e: MouseEvent) => loginRef.current && !loginRef.current.contains(e.target as Node) && setLoginOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setLoginOpen(false);
+    document.addEventListener('mousedown', off);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', off);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [loginOpen]);
   const isCompact = currentPage !== '';
 
   useEffect(() => {
@@ -353,21 +368,54 @@ export function Header({
               )}
             </>
           ) : (
-            <button
-              type="button"
-              onClick={() => onOpenAuth('login')}
-              title="Sign in"
-              className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
-            >
-              <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e8f0ff] text-[#1f6fd1] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
-                <Lock className="w-4 h-4" />
-              </span>
-              {!isCompact && (
-                <span className="hidden xl:inline text-left whitespace-nowrap">
-                  Sign<br />in
+            <div ref={loginRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setLoginOpen((o) => !o)}
+                onMouseEnter={() => void import('./AuthModal')}
+                onFocus={() => void import('./AuthModal')}
+                aria-haspopup="menu"
+                aria-expanded={loginOpen}
+                title="Login"
+                className="h-9 sm:h-10 pl-1 pr-3 rounded-full bg-[#1f6fd1] hover:bg-[#185cb0] text-white flex items-center gap-1.5 text-[13.5px] font-semibold cursor-pointer border-0 shadow-[0_6px_14px_-6px_rgba(31,111,209,0.7)] transition"
+              >
+                <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 flex items-center justify-center">
+                  <Lock className="w-3.5 h-3.5" />
                 </span>
+                Login
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${loginOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {loginOpen && (
+                <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-50 w-[250px] bg-white rounded-2xl border border-[#e1e5ec] shadow-[0_20px_40px_-14px_rgba(1,31,67,0.35)] p-1.5">
+                  {PORTALS.map(({ k, label, sub, Icon, c, soft }) => (
+                    <button
+                      key={k}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setLoginOpen(false);
+                        onOpenAuth('login', k);
+                      }}
+                      className="w-full flex items-center gap-3 p-2.5 rounded-xl text-left bg-transparent hover:bg-[#f4f6fa] cursor-pointer transition"
+                    >
+                      <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: soft, color: c }}>
+                        <Icon className="w-4.5 h-4.5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[13.5px] font-semibold text-[#011f43]">{label}</span>
+                        <span className="block text-[11.5px] text-[#5c6170]">{sub}</span>
+                      </span>
+                    </button>
+                  ))}
+                  <div className="border-t border-[#eef0f4] mt-1 pt-1.5 px-2.5 pb-1 text-[11.5px] text-[#5c6170]">
+                    New here?{' '}
+                    <button type="button" onClick={() => { setLoginOpen(false); onOpenAuth('register', 'buyer'); }} className="bg-transparent border-0 p-0 font-semibold text-[#d6262f] cursor-pointer hover:underline">
+                      Sign up
+                    </button>
+                  </div>
+                </div>
               )}
-            </button>
+            </div>
           )}
         </nav>
       </div>

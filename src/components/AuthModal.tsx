@@ -1,28 +1,90 @@
-import React, { useState } from 'react';
-import { Mail, Lock, ShieldCheck, KeyRound, X, RefreshCw, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail, RefreshCw, ShieldCheck, User as UserIcon, X } from 'lucide-react';
 import { api, setToken } from '../lib/api';
 import type { User } from '../types';
 
 type AuthMode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
+import { PORTALS, type AuthPortal } from '../lib/portals';
+export type { AuthPortal };
 
 interface AuthModalProps {
   initialMode?: 'login' | 'register';
+  initialPortal?: AuthPortal;
   onClose: () => void;
   onSuccess: (user: User) => void;
   toast: (msg: string) => void;
 }
 
-export function AuthModal({ initialMode = 'login', onClose, onSuccess, toast }: AuthModalProps) {
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+const inputCls =
+  'w-full h-11 pl-10 pr-3 border border-[#d9dfe8] rounded-xl text-[14px] bg-white outline-none transition focus:border-[var(--ac)] focus:ring-4 focus:ring-[var(--ac-soft)]';
+
+function Field({ label, Icon, children, right }: { label: string; Icon: typeof Mail; children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="flex items-center justify-between text-[12.5px] font-semibold text-[#33405c] mb-1.5">
+        {label}
+        {right}
+      </span>
+      <span className="relative block">
+        <Icon className="w-4 h-4 text-[var(--ac)] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden />
+        {children}
+      </span>
+    </label>
+  );
+}
+
+export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onClose, onSuccess, toast }: AuthModalProps) {
+  const [portal, setPortal] = useState<AuthPortal>(initialPortal);
+  const [mode, setMode] = useState<AuthMode>(initialPortal === 'admin' ? 'login' : initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'buyer' | 'contributor'>('buyer');
+  const [showPw, setShowPw] = useState(false);
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [deliveryInfo, setDeliveryInfo] = useState<{ sentViaSmtp: boolean; previewCode?: string; message?: string } | null>(null);
+  const [shown, setShown] = useState(false);
+  const firstRef = useRef<HTMLInputElement>(null);
+
+  const P = PORTALS.find((x) => x.k === portal) || PORTALS[0];
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setShown(true));
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', esc);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      cancelAnimationFrame(t);
+      window.removeEventListener('keydown', esc);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    firstRef.current?.focus();
+  }, [mode, portal]);
+
+  function switchPortal(k: AuthPortal) {
+    setPortal(k);
+    setError('');
+    if (k === 'admin' && mode === 'register') setMode('login');
+  }
+
+  function finish(u: User, token: string, msg: string) {
+    if (portal === 'admin' && u.role !== 'admin') {
+      setToken('');
+      setError('This account does not have Admin access.');
+      return;
+    }
+    setToken(token);
+    toast(msg);
+    onSuccess(u);
+    if (portal === 'admin') location.hash = '#/admin';
+    else if (portal === 'contributor' && (u.role === 'contributor' || u.role === 'admin')) location.hash = '#/contributor';
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -48,9 +110,7 @@ export function AuthModal({ initialMode = 'login', onClose, onSuccess, toast }: 
         setMode('verify');
         toast('Please verify your email with the 6-digit code');
       } else if (res.user && res.token) {
-        setToken(res.token);
-        toast(`Welcome, ${res.user.name}`);
-        onSuccess(res.user);
+        finish(res.user, res.token, `Welcome, ${res.user.name}`);
       }
     } catch (err) {
       setError((err as Error).message);
@@ -72,7 +132,7 @@ export function AuthModal({ initialMode = 'login', onClose, onSuccess, toast }: 
         message?: string;
       }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, password, role: portal === 'contributor' ? 'contributor' : 'buyer' }),
       });
       setEmail(res.email);
       setDeliveryInfo({ sentViaSmtp: res.sentViaSmtp, previewCode: res.previewCode, message: res.message });
@@ -94,9 +154,7 @@ export function AuthModal({ initialMode = 'login', onClose, onSuccess, toast }: 
         method: 'POST',
         body: JSON.stringify({ email, code: otp }),
       });
-      setToken(res.token);
-      toast(`Email verified! Welcome, ${res.user.name}`);
-      onSuccess(res.user);
+      finish(res.user, res.token, `Email verified! Welcome, ${res.user.name}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -149,9 +207,7 @@ export function AuthModal({ initialMode = 'login', onClose, onSuccess, toast }: 
         method: 'POST',
         body: JSON.stringify({ email, code: otp, newPassword }),
       });
-      setToken(res.token);
-      toast('Password updated & signed in');
-      onSuccess(res.user);
+      finish(res.user, res.token, 'Password updated. You are logged in.');
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -159,336 +215,204 @@ export function AuthModal({ initialMode = 'login', onClose, onSuccess, toast }: 
     }
   }
 
+  const title =
+    mode === 'login' ? `${P.label} Login` :
+    mode === 'register' ? `Create ${P.label} account` :
+    mode === 'verify' ? 'Verify your email' :
+    mode === 'forgot' ? 'Forgot password' : 'Set a new password';
+  const sub =
+    mode === 'login' ? P.sub :
+    mode === 'register' ? 'Use a real email. We send a 6-digit code to verify it.' :
+    mode === 'verify' ? `Enter the 6-digit code sent to ${email}` :
+    mode === 'forgot' ? 'We will email you a 6-digit recovery code.' : `Reset password for ${email}`;
+
+  const primary = 'w-full h-11 rounded-xl text-white font-semibold text-[14px] shadow-[0_8px_18px_-8px_var(--ac)] hover:brightness-110 active:scale-[0.99] disabled:opacity-60 transition cursor-pointer bg-[var(--ac)]';
+  const link = 'bg-transparent border-0 p-0 font-semibold text-[var(--ac)] hover:underline cursor-pointer';
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 transition-colors duration-200 ${shown ? 'bg-[#011f43]/55 backdrop-blur-[3px]' : 'bg-transparent'}`}
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      style={{ ['--ac' as string]: P.c, ['--ac-soft' as string]: P.soft } as React.CSSProperties}
     >
-      <div className="bg-white border border-[#d9dbe1] rounded-2xl w-full max-w-[480px] max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="dm text-[28px] text-[#011f43] leading-tight m-0">
-              {mode === 'login' && 'Real Email Sign In'}
-              {mode === 'register' && 'Create Real Email Account'}
-              {mode === 'verify' && 'Verify Your Email'}
-              {mode === 'forgot' && 'Reset Password'}
-              {mode === 'reset' && 'Enter Reset Code'}
-            </h2>
-            <p className="text-xs text-[#5c6170] mt-1">
-              {mode === 'login' && 'Sign in with your verified email & password'}
-              {mode === 'register' && 'Verified email required (Gmail, Outlook, Yahoo, or domain email)'}
-              {mode === 'verify' && `Enter the 6-digit code sent to ${email}`}
-              {mode === 'forgot' && 'We will send a 6-digit recovery code to your email'}
-              {mode === 'reset' && `Reset password for ${email}`}
-            </p>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-title"
+        className={`w-full sm:max-w-[430px] max-h-[94vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-[0_40px_80px_-24px_rgba(1,31,67,0.55)] transition-all duration-200 ease-out ${
+          shown ? 'opacity-100 translate-y-0 sm:scale-100' : 'opacity-0 translate-y-6 sm:scale-[0.97]'
+        }`}
+      >
+        {/* Portal switch */}
+        <div className="px-5 pt-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <img src="/favicon.svg" alt="" className="w-7 h-7 rounded-lg" />
+              <span className="font-bold text-[#011f43] text-[15px] tracking-tight">SantalStock</span>
+            </div>
+            <button type="button" onClick={onClose} aria-label="Close" className="w-8 h-8 rounded-full bg-[#f2f4f8] text-[#5c6170] hover:text-[#d6262f] flex items-center justify-center cursor-pointer transition">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-full border border-[#d9dbe1] bg-white text-[#011f43] flex items-center justify-center hover:bg-slate-50 cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {(mode === 'login' || mode === 'register') && (
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-[#f2f4f8]" role="tablist" aria-label="Login as">
+              {PORTALS.map(({ k, label, Icon, c }) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={portal === k}
+                  onClick={() => switchPortal(k)}
+                  className={`h-10 rounded-xl flex items-center justify-center gap-1.5 text-[12.5px] font-semibold cursor-pointer transition ${
+                    portal === k ? 'bg-white shadow-sm text-[#011f43]' : 'text-[#5c6170] hover:text-[#011f43]'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" style={{ color: c }} aria-hidden /> {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 font-medium">
-            {error}
-          </div>
-        )}
-
-        {(mode === 'verify' || mode === 'reset') && deliveryInfo && (
-          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
-            <div className="flex items-center gap-2 font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              {deliveryInfo.sentViaSmtp
-                ? `Email sent to ${email}. Check your inbox & spam folder.`
-                : `Live Verification Code for ${email}`}
+        <div className="px-5 pb-6 pt-4">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: P.soft, color: P.c }}>
+              <P.Icon className="w-5 h-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h2 id="auth-title" className="m-0 text-[19px] font-bold text-[#011f43] leading-tight">{title}</h2>
+              <p className="m-0 mt-0.5 text-[12.5px] text-[#5c6170] truncate">{sub}</p>
             </div>
-            {!deliveryInfo.sentViaSmtp && deliveryInfo.previewCode && (
-              <div className="mt-2 flex items-center justify-between gap-2 bg-white border border-emerald-200 rounded-lg px-3 py-2">
-                <div>
-                  <div className="text-[11px] text-slate-500">Your 6-digit OTP code:</div>
-                  <div className="font-mono text-xl font-extrabold tracking-[6px] text-[#011f43] tabular-nums">
-                    {deliveryInfo.previewCode}
-                  </div>
-                </div>
+          </div>
+
+          {(mode === 'login' || mode === 'register') && portal !== 'admin' && (
+            <div className="flex border-b border-[#e8ecf2] mb-4 text-[13.5px] font-semibold">
+              {(['login', 'register'] as const).map((m) => (
                 <button
+                  key={m}
                   type="button"
-                  onClick={() => setOtp(deliveryInfo.previewCode || '')}
-                  className="px-3 py-1.5 rounded-lg bg-[#011f43] text-white text-xs font-semibold cursor-pointer"
+                  onClick={() => { setError(''); setMode(m); }}
+                  className={`flex-1 pb-2.5 -mb-px border-b-2 cursor-pointer bg-transparent transition ${mode === m ? 'border-[var(--ac)] text-[var(--ac)]' : 'border-transparent text-[#8a93a6] hover:text-[#33405c]'}`}
                 >
-                  Auto-fill
+                  {m === 'login' ? 'Login' : 'Sign up'}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-3.5 rounded-xl border border-[#f4c2c6] bg-[#fff2f3] px-3.5 py-2.5 text-[13px] text-[#a3141c] font-medium" role="alert">
+              {error}
+            </div>
+          )}
+
+          {(mode === 'verify' || mode === 'reset') && deliveryInfo && (
+            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-[13px] text-emerald-900">
+              <div className="flex items-center gap-2 font-semibold">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                {deliveryInfo.sentViaSmtp ? `Code sent to ${email}. Check inbox & spam.` : `Verification code for ${email}`}
+              </div>
+              {!deliveryInfo.sentViaSmtp && deliveryInfo.previewCode && (
+                <div className="mt-2 flex items-center justify-between gap-2 bg-white border border-emerald-200 rounded-lg px-3 py-2">
+                  <div className="font-mono text-xl font-extrabold tracking-[6px] text-[#011f43] tabular-nums">{deliveryInfo.previewCode}</div>
+                  <button type="button" onClick={() => setOtp(deliveryInfo.previewCode || '')} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold cursor-pointer">
+                    Auto-fill
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === 'login' && (
+            <form onSubmit={handleLogin} className="space-y-3.5">
+              <Field label="Email" Icon={Mail}>
+                <input ref={firstRef} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="yourname@gmail.com" className={inputCls} />
+              </Field>
+              <Field
+                label="Password"
+                Icon={Lock}
+                right={<button type="button" onClick={() => { setError(''); setMode('forgot'); }} className={`${link} text-[12px]`}>Forgot?</button>}
+              >
+                <input type={showPw ? 'text' : 'password'} required minLength={6} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className={`${inputCls} pr-11`} />
+                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-[#8a93a6] hover:text-[var(--ac)] cursor-pointer bg-transparent">
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </Field>
+              <button type="submit" disabled={loading} className={primary}>
+                {loading ? 'Logging in…' : `Login as ${P.label}`}
+              </button>
+              {portal !== 'admin' && (
+                <p className="text-center text-[12.5px] text-[#5c6170] m-0 pt-1">
+                  New to SantalStock?{' '}
+                  <button type="button" onClick={() => { setError(''); setMode('register'); }} className={link}>Create an account</button>
+                </p>
+              )}
+              {portal === 'admin' && (
+                <p className="text-center text-[12px] text-[#8a93a6] m-0 pt-1">Admin accounts are created by the site owner only.</p>
+              )}
+            </form>
+          )}
+
+          {mode === 'register' && (
+            <form onSubmit={handleRegister} className="space-y-3.5">
+              <Field label="Full name" Icon={UserIcon}>
+                <input ref={firstRef} type="text" required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sunita Soren" className={inputCls} />
+              </Field>
+              <Field label="Email" Icon={Mail}>
+                <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="yourname@gmail.com" className={inputCls} />
+              </Field>
+              <Field label="Password" Icon={Lock}>
+                <input type={showPw ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" className={`${inputCls} pr-11`} />
+                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-[#8a93a6] hover:text-[var(--ac)] cursor-pointer bg-transparent">
+                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </Field>
+              <button type="submit" disabled={loading} className={primary}>
+                {loading ? 'Sending code…' : `Sign up as ${P.label}`}
+              </button>
+              <p className="text-center text-[12.5px] text-[#5c6170] m-0 pt-1">
+                Already have an account?{' '}
+                <button type="button" onClick={() => { setError(''); setMode('login'); }} className={link}>Login</button>
+              </p>
+            </form>
+          )}
+
+          {mode === 'verify' && (
+            <form onSubmit={handleVerify} className="space-y-3.5">
+              <Field label="6-digit code" Icon={ShieldCheck}>
+                <input ref={firstRef} type="text" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} pattern="[0-9]{6}" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" className={`${inputCls} text-lg font-mono tracking-[6px] tabular-nums`} />
+              </Field>
+              <div className="flex gap-2">
+                <button type="submit" disabled={loading} className={primary}>{loading ? 'Verifying…' : 'Verify & Login'}</button>
+                <button type="button" disabled={loading} onClick={handleResend} className="h-11 px-3.5 rounded-xl border border-[#d9dfe8] bg-white text-[#33405c] font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0">
+                  <RefreshCw className="w-3.5 h-3.5 text-[var(--ac)]" /> Resend
                 </button>
               </div>
-            )}
-            {!deliveryInfo.sentViaSmtp && (
-              <p className="text-[11px] text-emerald-800/80 mt-1.5 mb-0">
-                Tip: Add RESEND_API_KEY (Cloudflare Pages) or SMTP_HOST/SMTP_USER/SMTP_PASS (local server) to send OTP codes directly to user inboxes.
-              </p>
-            )}
-          </div>
-        )}
+            </form>
+          )}
 
-        {mode === 'login' && (
-          <form onSubmit={handleLogin} className="space-y-3.5">
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Email Address</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[#5c6170] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="yourname@gmail.com"
-                  className="w-full pl-9 pr-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Password</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[#5c6170] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => { setError(''); setMode('forgot'); }}
-                className="text-[#2f3f8f] font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer"
-              >
-                Forgot password?
-              </button>
-            </div>
-            <div className="flex gap-2.5 pt-1">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-[#011f43] text-white font-semibold text-sm hover:bg-[#0d2f5c] disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-2.5 px-4 rounded-lg border border-[#d9dbe1] bg-white text-[#011f43] font-semibold text-sm cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-            <p className="text-xs text-[#5c6170] pt-1">
-              New to SantalStock?{' '}
-              <button
-                type="button"
-                onClick={() => { setError(''); setMode('register'); }}
-                className="text-[#d6262f] font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer"
-              >
-                Create real email account
-              </button>
-            </p>
-            <div className="rounded-lg bg-[#f6f7fb] border border-[#e3e7f0] p-3 text-xs text-[#5c6170] space-y-1">
-              <div className="font-semibold text-[#011f43]">Admin Access</div>
-              <div>Default Admin: <code className="text-[#011f43]">admin@santalstock.in</code> / <code className="text-[#011f43]">admin123</code></div>
-              <div>Or register with owner email (<code className="text-[#011f43]">sunitasoran98@gmail.com</code>) for automatic Admin role.</div>
-            </div>
-          </form>
-        )}
+          {mode === 'forgot' && (
+            <form onSubmit={handleForgot} className="space-y-3.5">
+              <Field label="Registered email" Icon={Mail}>
+                <input ref={firstRef} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="yourname@gmail.com" className={inputCls} />
+              </Field>
+              <button type="submit" disabled={loading} className={primary}>{loading ? 'Sending…' : 'Send reset code'}</button>
+              <p className="text-center m-0"><button type="button" onClick={() => setMode('login')} className={`${link} text-[12.5px]`}>Back to Login</button></p>
+            </form>
+          )}
 
-        {mode === 'register' && (
-          <form onSubmit={handleRegister} className="space-y-3.5">
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Full Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Sunita Soren"
-                className="w-full px-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Real Email Address</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@gmail.com"
-                className="w-full px-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Account Type</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as 'buyer' | 'contributor')}
-                className="w-full px-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm bg-white outline-none focus:border-[#2f3f8f]"
-              >
-                <option value="buyer">Buyer (photos kharidna)</option>
-                <option value="contributor">Contributor (photos bechna)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Password (min 6 chars)</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a strong password"
-                className="w-full px-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-              />
-            </div>
-            <div className="flex gap-2.5 pt-1">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-[#d6262f] text-white font-semibold text-sm hover:bg-[#b81d25] disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? 'Checking email...' : 'Send Verification Code'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-2.5 px-4 rounded-lg border border-[#d9dbe1] bg-white text-[#011f43] font-semibold text-sm cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-            <p className="text-xs text-[#5c6170]">
-              Already have an account?{' '}
-              <button
-                type="button"
-                onClick={() => { setError(''); setMode('login'); }}
-                className="text-[#2f3f8f] font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer"
-              >
-                Sign in
-              </button>
-            </p>
-          </form>
-        )}
-
-        {mode === 'verify' && (
-          <form onSubmit={handleVerify} className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">6-Digit Verification Code</label>
-              <div className="relative">
-                <ShieldCheck className="w-4 h-4 text-[#17803d] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  pattern="[0-9]{6}"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  className="w-full pl-9 pr-3 py-2.5 border border-[#d9dbe1] rounded-lg text-lg font-mono tracking-[6px] tabular-nums outline-none focus:border-[#17803d]"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2.5">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-[#17803d] text-white font-semibold text-sm hover:bg-[#136a32] disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? 'Verifying...' : 'Verify & Sign In'}
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleResend}
-                className="py-2.5 px-3.5 rounded-lg border border-[#d9dbe1] bg-white text-[#011f43] font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Resend
-              </button>
-            </div>
-          </form>
-        )}
-
-        {mode === 'forgot' && (
-          <form onSubmit={handleForgot} className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">Registered Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@gmail.com"
-                className="w-full px-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-              />
-            </div>
-            <div className="flex gap-2.5">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-2.5 px-4 rounded-lg bg-[#011f43] text-white font-semibold text-sm cursor-pointer"
-              >
-                {loading ? 'Sending...' : 'Send Reset Code'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('login')}
-                className="py-2.5 px-4 rounded-lg border border-[#d9dbe1] bg-white text-[#011f43] font-semibold text-sm cursor-pointer"
-              >
-                Back
-              </button>
-            </div>
-          </form>
-        )}
-
-        {mode === 'reset' && (
-          <form onSubmit={handleReset} className="space-y-3.5">
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">6-Digit Reset Code</label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-[#5c6170] absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
-                  className="w-full pl-9 pr-3 py-2.5 border border-[#d9dbe1] rounded-lg font-mono tracking-[6px] text-base outline-none focus:border-[#2f3f8f]"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111] mb-1">New Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className="w-full px-3 py-2.5 border border-[#d9dbe1] rounded-lg text-sm outline-none focus:border-[#2f3f8f]"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 px-4 rounded-lg bg-[#17803d] text-white font-semibold text-sm cursor-pointer"
-            >
-              {loading ? 'Updating...' : 'Reset Password & Sign In'}
-            </button>
-          </form>
-        )}
+          {mode === 'reset' && (
+            <form onSubmit={handleReset} className="space-y-3.5">
+              <Field label="6-digit reset code" Icon={KeyRound}>
+                <input ref={firstRef} type="text" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" className={`${inputCls} font-mono tracking-[6px]`} />
+              </Field>
+              <Field label="New password" Icon={Lock}>
+                <input type="password" required minLength={6} autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" className={inputCls} />
+              </Field>
+              <button type="submit" disabled={loading} className={primary}>{loading ? 'Updating…' : 'Reset & Login'}</button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

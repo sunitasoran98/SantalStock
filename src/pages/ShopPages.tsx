@@ -455,10 +455,10 @@ export function CartCheckoutPage({
   if (!user) {
     return (
       <section className="wrap py-16 text-center">
-        <h2 className="dm text-3xl text-[#011f43]">Sign in to Checkout</h2>
-        <p className="text-sm text-[#5c6170]">Please sign in with your real email account to receive your license & GST invoice.</p>
+        <h2 className="dm text-3xl text-[#011f43]">Login to Checkout</h2>
+        <p className="text-sm text-[#5c6170]">Please login with your real email account to receive your license & GST invoice.</p>
         <button type="button" onClick={() => onOpenAuth('login')} className="mt-3 px-5 py-2.5 rounded-lg bg-[#011f43] text-white font-semibold cursor-pointer">
-          Sign in / Create Account
+          Login / Sign up
         </button>
       </section>
     );
