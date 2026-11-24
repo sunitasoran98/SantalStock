@@ -16,8 +16,20 @@ interface KVNamespaceLike {
   put(key: string, value: string): Promise<void>;
 }
 
+interface R2ObjectLike {
+  body: ReadableStream;
+  httpMetadata?: { contentType?: string };
+}
+
+interface R2BucketLike {
+  put(key: string, value: ArrayBuffer | Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+  get(key: string): Promise<R2ObjectLike | null>;
+  delete(key: string): Promise<void>;
+}
+
 interface CfEnv {
   SANTALSTOCK_KV?: KVNamespaceLike;
+  SANTALSTOCK_R2?: R2BucketLike;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   GITHUB_TOKEN?: string;
@@ -407,12 +419,98 @@ async function createSession(env: CfEnv, db: Database, email: string): Promise<{
   return { token, cookie };
 }
 
+/* ================= R2 IMAGE STORAGE ================= */
+// Photos go to the R2 bucket; KV keeps only the short /api/img/... path.
+function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: string } | null {
+  const m = dataUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+  if (!m || !m[2]) return null;
+  const bin = atob(m[3]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return { bytes, type: m[1] || 'image/jpeg' };
+}
+
+async function storeImage(env: CfEnv, kind: 'prev' | 'full', id: string, value: string): Promise<string> {
+  if (!env.SANTALSTOCK_R2 || !value.startsWith('data:')) return value;
+  const parsed = dataUrlToBytes(value);
+  if (!parsed) return value;
+  const key = `${kind}/${id}.jpg`;
+  await env.SANTALSTOCK_R2.put(key, parsed.bytes, { httpMetadata: { contentType: parsed.type } });
+  return `/api/img/${key}?v=${Date.now().toString(36)}`;
+}
+
+async function deleteImages(env: CfEnv, id: string): Promise<void> {
+  if (!env.SANTALSTOCK_R2) return;
+  await Promise.all(['prev', 'full'].map((k) => env.SANTALSTOCK_R2!.delete(`${k}/${id}.jpg`).catch(() => undefined)));
+}
+
+// Moves any photo still saved inside KV (base64) into R2. Runs once when R2 is first bound.
+async function migrateImagesToR2(env: CfEnv, db: Database): Promise<number> {
+  if (!env.SANTALSTOCK_R2) return 0;
+  let moved = 0;
+  for (const a of db.assets) {
+    const full = a.fullUrl && a.fullUrl !== a.prevUrl ? a.fullUrl : '';
+    if (a.prevUrl && a.prevUrl.startsWith('data:')) {
+      a.prevUrl = await storeImage(env, 'prev', a.id, a.prevUrl);
+      moved++;
+    }
+    if (full && full.startsWith('data:')) {
+      a.fullUrl = await storeImage(env, 'full', a.id, full);
+      moved++;
+    } else if (a.fullUrl && a.fullUrl.startsWith('data:')) {
+      a.fullUrl = a.prevUrl;
+    }
+  }
+  return moved;
+}
+
+async function serveImage(env: CfEnv, key: string, publicCache: boolean): Promise<Response> {
+  if (!env.SANTALSTOCK_R2) return json({ error: 'Image storage (R2) not configured.' }, 404);
+  const obj = await env.SANTALSTOCK_R2.get(key);
+  if (!obj) return json({ error: 'Image not found.' }, 404);
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg',
+      'Cache-Control': publicCache ? 'public, max-age=31536000, immutable' : 'private, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
 export async function onRequest(context: CfContext): Promise<Response> {
   const { request, env } = context;
   const method = request.method.toUpperCase();
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, '');
+
+  // Public preview images are served straight from R2 (no KV read, cached by browsers/CDN).
+  const prevImg = pathname.match(/^\/api\/img\/prev\/([A-Za-z0-9_-]+)\.jpg$/);
+  if (method === 'GET' && prevImg) return serveImage(env, `prev/${prevImg[1]}.jpg`, true);
+
   const db = await loadDb(env);
+
+  if (env.SANTALSTOCK_R2 && db.assets.some((a) => (a.prevUrl || '').startsWith('data:') || (a.fullUrl || '').startsWith('data:'))) {
+    try {
+      if ((await migrateImagesToR2(env, db)) > 0) await saveDb(env, db);
+    } catch {
+      // keep serving; migration retries on the next request
+    }
+  }
+
+  // Full-size files: only admin, the photo's owner, or a buyer with a paid order.
+  const fullImg = pathname.match(/^\/api\/img\/full\/([A-Za-z0-9_-]+)\.jpg$/);
+  if (method === 'GET' && fullImg) {
+    const id = fullImg[1];
+    const u = getAuthUser(request, db);
+    const asset = db.assets.find((a) => a.id === id);
+    const allowed =
+      !!u &&
+      (u.role === 'admin' ||
+        asset?.owner === u.email ||
+        db.orders.some((o) => o.user === u.email && (!o.status || o.status === 'paid') && o.items.some((i) => i.id === id)));
+    if (!allowed) return json({ error: 'Buy a license to download the full-size file.' }, 403);
+    return serveImage(env, `full/${id}.jpg`, false);
+  }
 
   /* ================= AUTH ROUTES ================= */
   if (method === 'GET' && pathname === '/api/auth/me') {
@@ -421,6 +519,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       user: u ? sanitizeUser(u) : null,
       smtpConfigured: Boolean(env.RESEND_API_KEY),
       cloudflareKv: Boolean(env.SANTALSTOCK_KV),
+      cloudflareR2: Boolean(env.SANTALSTOCK_R2),
     });
   }
 
@@ -717,8 +816,8 @@ export async function onRequest(context: CfContext): Promise<Response> {
       caption: String(b.caption || '').trim(),
       evdate: String(b.evdate || ''),
       place: String(b.place || '').trim(),
-      prevUrl: String(b.prevUrl || ''),
-      fullUrl: String(b.fullUrl || b.prevUrl || ''),
+      prevUrl: await storeImage(env, 'prev', id, String(b.prevUrl || '')),
+      fullUrl: await storeImage(env, 'full', id, String(b.fullUrl || b.prevUrl || '')),
     };
     db.assets.unshift(asset);
     await saveDb(env, db);
@@ -751,8 +850,8 @@ export async function onRequest(context: CfContext): Promise<Response> {
     if (typeof b.reason === 'string') rec.reason = b.reason.trim();
     if (Array.isArray(b.kw)) rec.kw = b.kw.map((k) => String(k).trim().toLowerCase()).filter(Boolean);
     if (b.prevUrl) {
-      rec.prevUrl = String(b.prevUrl);
-      rec.fullUrl = String(b.fullUrl || b.prevUrl);
+      rec.prevUrl = await storeImage(env, 'prev', rec.id, String(b.prevUrl));
+      rec.fullUrl = await storeImage(env, 'full', rec.id, String(b.fullUrl || b.prevUrl));
       rec.w = Number(b.w) || rec.w;
       rec.h = Number(b.h) || rec.h;
       rec.src = 'upload';
@@ -774,6 +873,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     }
     if (isSeed && !db.deletedSeed.includes(id)) db.deletedSeed.push(id);
     db.assets = db.assets.filter((x) => x.id !== id);
+    await deleteImages(env, id);
     await saveDb(env, db);
     if (u.role === 'admin') await maybeAutoSyncGitHub(env, db, `Delete photo ${id}`);
     return json({ ok: true });

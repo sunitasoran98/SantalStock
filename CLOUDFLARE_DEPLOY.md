@@ -23,6 +23,15 @@ This project is pre-configured for **Cloudflare Pages** with:
      - **Variable name**: `SANTALSTOCK_KV`
      - **KV namespace**: select `santalstock-db`
    - Redeploy once so all Admin Mode edits, uploaded photos, orders, and user accounts persist globally across every visitor.
+5b. **Photo Storage (R2) — zaroori, warna ~10-15 photo ke baad upload fail hoga**:
+   - KV ka ek record max 25 MB ka hota hai. R2 ke bina har photo usi record me jaati hai.
+   - Cloudflare Dashboard -> **R2 Object Storage** -> pehli baar **Enable / Purchase R2 Plan** (free plan: 10 GB/month storage, download free; Cloudflare payment method maangta hai, free limit me charge nahi hota).
+   - **Create bucket** -> naam `santalstock-images` -> Location: Automatic.
+   - Pages project -> **Settings** -> **Bindings** -> **Add** -> **R2 bucket**:
+     - **Variable name**: `SANTALSTOCK_R2`
+     - **R2 bucket**: `santalstock-images`
+   - Redeploy. Pehle se KV me padi photos pehli request par apne aap R2 me shift ho jaati hain.
+   - Preview photo sabke liye khuli hai. Full-size file (`/api/img/full/...`) sirf admin, photo ke owner, ya paid order wale buyer ko milti hai.
 6. **Optional — Real Inbox Email OTP Delivery**:
    - Sign up for a free [Resend](https://resend.com) API key.
    - Open your Pages project -> **Settings** -> **Variables and Secrets** and add:

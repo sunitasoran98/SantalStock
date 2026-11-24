@@ -39,7 +39,13 @@ export async function downloadFullAsset(asset: Asset, sizeKey: SizeKey, siteConf
       c.getContext('2d')?.drawImage(img, 0, 0, c.width, c.height);
       triggerDownload(c.toDataURL('image/jpeg', 0.92), `SantalStock-${asset.id}-${sizeKey}.jpg`);
     } else {
-      const blob = await (await fetch(url)).blob();
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) {
+        const msg = ((await res.json().catch(() => ({}))) as { error?: string }).error;
+        toast(msg || 'Download nahi ho saka. License kharidne ke baad try karein.');
+        return;
+      }
+      const blob = await res.blob();
       triggerDownload(URL.createObjectURL(blob), `SantalStock-${asset.id}-${sizeKey}.jpg`);
     }
   } catch {
