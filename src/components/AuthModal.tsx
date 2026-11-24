@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail, RefreshCw, ShieldCheck, User as UserIcon, X } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, KeyRound, Lock, Mail, Phone, RefreshCw, ShieldCheck, User as UserIcon, X } from 'lucide-react';
 import { api, setToken } from '../lib/api';
 import type { User } from '../types';
 
@@ -37,7 +37,22 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
   const [portal, setPortal] = useState<AuthPortal>(initialPortal);
   const [mode, setMode] = useState<AuthMode>(initialPortal === 'admin' ? 'login' : initialMode);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    try {
+      return localStorage.getItem('ss_last_email') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [mobile, setMobile] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [remember, setRemember] = useState(true);
+  const [cooldown, setCooldown] = useState(0);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [otp, setOtp] = useState('');
@@ -79,7 +94,13 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
       setError('This account does not have Admin access.');
       return;
     }
-    setToken(token);
+    setToken(token, remember);
+    try {
+      if (remember) localStorage.setItem('ss_last_email', u.email);
+      else localStorage.removeItem('ss_last_email');
+    } catch {
+      // ignore
+    }
     toast(msg);
     onSuccess(u);
     if (portal === 'admin') location.hash = '#/admin';
@@ -122,6 +143,14 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (password !== confirmPw) {
+      setError('Password and Confirm password do not match.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<{
@@ -132,7 +161,7 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
         message?: string;
       }>('/api/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, role: portal === 'contributor' ? 'contributor' : 'buyer' }),
+        body: JSON.stringify({ name, email, mobile, password, role: portal === 'contributor' ? 'contributor' : 'buyer' }),
       });
       setEmail(res.email);
       setDeliveryInfo({ sentViaSmtp: res.sentViaSmtp, previewCode: res.previewCode, message: res.message });
@@ -179,20 +208,25 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
     }
   }
 
-  async function handleForgot(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleForgot(e?: React.FormEvent) {
+    e?.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const res = await api<{ sentViaSmtp: boolean; previewCode?: string }>('/api/auth/forgot-password', {
+      const res = await api<{ sentViaSmtp: boolean; previewCode?: string; message?: string }>('/api/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
-      setDeliveryInfo({ sentViaSmtp: res.sentViaSmtp, previewCode: res.previewCode });
+      setDeliveryInfo({ sentViaSmtp: res.sentViaSmtp, previewCode: res.previewCode, message: res.message });
+      setOtp('');
+      setCooldown(60);
       setMode('reset');
-      toast('Password reset code generated');
+      toast(res.sentViaSmtp ? 'Reset code sent to your email' : 'Reset code ready (test mode)');
     } catch (err) {
-      setError((err as Error).message);
+      const m = (err as Error).message;
+      const w = m.match(/wait (\d+) seconds/);
+      if (w) setCooldown(Number(w[1]));
+      setError(m);
     } finally {
       setLoading(false);
     }
@@ -201,6 +235,10 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (newPassword !== confirmPw) {
+      setError('Password and Confirm password do not match.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<{ user: User; token: string }>('/api/auth/reset-password', {
@@ -338,6 +376,10 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </Field>
+              <label className="flex items-center gap-2 text-[12.5px] text-[#33405c] cursor-pointer select-none">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="w-4 h-4 accent-[var(--ac)] cursor-pointer" />
+                Remember me on this device
+              </label>
               <button type="submit" disabled={loading} className={primary}>
                 {loading ? 'Logging in…' : `Login as ${P.label}`}
               </button>
@@ -361,11 +403,18 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
               <Field label="Email" Icon={Mail}>
                 <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="yourname@gmail.com" className={inputCls} />
               </Field>
+              <Field label="Mobile number" Icon={Phone}>
+                <span className="absolute left-9 top-1/2 -translate-y-1/2 text-[14px] text-[#5c6170] pointer-events-none">+91</span>
+                <input type="tel" inputMode="numeric" required autoComplete="tel-national" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').replace(/^(91|0)(?=\d{10})/, '').slice(0, 10))} placeholder="98765 43210" pattern="[6-9][0-9]{9}" className={`${inputCls} pl-[4.25rem]`} />
+              </Field>
               <Field label="Password" Icon={Lock}>
                 <input type={showPw ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" className={`${inputCls} pr-11`} />
                 <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Hide password' : 'Show password'} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-[#8a93a6] hover:text-[var(--ac)] cursor-pointer bg-transparent">
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
+              </Field>
+              <Field label="Confirm password" Icon={Lock}>
+                <input type={showPw ? 'text' : 'password'} required minLength={6} autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Type password again" className={`${inputCls} ${confirmPw && confirmPw !== password ? '!border-[#d6262f]' : ''}`} />
               </Field>
               <button type="submit" disabled={loading} className={primary}>
                 {loading ? 'Sending code…' : `Sign up as ${P.label}`}
@@ -396,7 +445,7 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
               <Field label="Registered email" Icon={Mail}>
                 <input ref={firstRef} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="yourname@gmail.com" className={inputCls} />
               </Field>
-              <button type="submit" disabled={loading} className={primary}>{loading ? 'Sending…' : 'Send reset code'}</button>
+              <button type="submit" disabled={loading} className={primary}>{loading ? 'Sending…' : 'Email me the OTP'}</button>
               <p className="text-center m-0"><button type="button" onClick={() => setMode('login')} className={`${link} text-[12.5px]`}>Back to Login</button></p>
             </form>
           )}
@@ -409,7 +458,16 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
               <Field label="New password" Icon={Lock}>
                 <input type="password" required minLength={6} autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="At least 6 characters" className={inputCls} />
               </Field>
-              <button type="submit" disabled={loading} className={primary}>{loading ? 'Updating…' : 'Reset & Login'}</button>
+              <Field label="Confirm new password" Icon={Lock}>
+                <input type="password" required minLength={6} autoComplete="new-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Type it again" className={`${inputCls} ${confirmPw && confirmPw !== newPassword ? '!border-[#d6262f]' : ''}`} />
+              </Field>
+              <button type="submit" disabled={loading || otp.length !== 6} className={primary}>{loading ? 'Updating…' : 'Reset & Login'}</button>
+              <div className="flex items-center justify-between text-[12.5px]">
+                <button type="button" onClick={() => { setError(''); setMode('forgot'); }} className={link}>Change email</button>
+                <button type="button" disabled={loading || cooldown > 0} onClick={() => void handleForgot()} className={`${link} disabled:text-[#8a93a6] disabled:no-underline disabled:cursor-default`}>
+                  {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+                </button>
+              </div>
             </form>
           )}
         </div>

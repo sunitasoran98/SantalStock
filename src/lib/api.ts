@@ -1,20 +1,24 @@
-import { buildStaticFallbackZip, handleStaticFallback } from './staticFallback';
+const fb = () => import('./staticFallback');
+const handleStaticFallback = async <T,>(u: string, o: RequestInit, t: string) => (await fb()).handleStaticFallback<T>(u, o, t);
+const buildStaticFallbackZip = async () => (await fb()).buildStaticFallbackZip();
 
 const TOKEN_KEY = 'santalstock_token_v1';
 let useStaticFallback = false;
 
 export function getToken(): string {
   try {
-    return localStorage.getItem(TOKEN_KEY) || '';
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || '';
   } catch {
     return '';
   }
 }
 
-export function setToken(token: string) {
+/** remember=true keeps the login after the browser closes; false ends it with the tab session. */
+export function setToken(token: string, remember = true) {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    if (token) (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
   } catch {
     // ignore storage errors
   }

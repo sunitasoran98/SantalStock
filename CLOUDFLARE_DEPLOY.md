@@ -41,7 +41,9 @@ This project is pre-configured for **Cloudflare Pages** with:
    - Open your Pages project -> **Settings** -> **Variables and Secrets** and add:
      - `RESEND_API_KEY` = your Resend API key
      - `EMAIL_FROM` = `SantalStock <noreply@yourdomain.com>` (or `SantalStock <onboarding@resend.dev>` for testing)
-   - Redeploy. Without `RESEND_API_KEY`, real MX-domain validation still works and verification OTP codes appear in-app so you can test immediately.
+   - Redeploy. **Sign up and password reset OTP go only by email.** Without `RESEND_API_KEY` they show "Email service is not set up yet".
+   - Testing only: add `ALLOW_SCREEN_OTP` = `1` to show the OTP on screen. Delete it before going live, otherwise anyone can reset any password.
+   - Note: `onboarding@resend.dev` sends only to your own Resend account email. To email real users, verify your domain in Resend → Domains and use `noreply@yourdomain`.
 
 ---
 

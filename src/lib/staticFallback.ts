@@ -8,7 +8,14 @@ import {
 } from './githubSync';
 import { buildZip } from './zipBuilder';
 import { cleanFingerprint, findDuplicates } from './dupMatch';
-import type { Asset, GitHubSyncConfig, Order, Payout, SiteConfig, User, UserRole } from '../types';
+import type { Asset, ContactMessage, GitHubSyncConfig, Order, Payout, SiteConfig, User, UserRole } from '../types';
+
+function cleanMobile(v: unknown): string {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return /^[6-9]\d{9}$/.test(d) ? d : '';
+}
 
 interface StoredUser extends User {
   pwHash: string;
@@ -34,7 +41,7 @@ interface LocalDatabase {
   payouts: Payout[];
   lightbox: Record<string, Record<string, string[]>>;
   newsletter: string[];
-  messages: { id: string; name: string; email: string; message: string; date: string }[];
+  messages: ContactMessage[];
   siteConfig: SiteConfig;
   githubSync?: GitHubSyncConfig;
 }
@@ -286,14 +293,16 @@ export async function handleStaticFallback<T>(
     const email = String(body.email || '').trim().toLowerCase();
     const cleanName = String(body.name || '').trim();
     const pw = String(body.password || '');
+    const mobile = cleanMobile(body.mobile);
     if (!cleanName || cleanName.length < 2) throw new Error('Please enter your full name.');
     if (pw.length < 6) throw new Error('Password must be at least 6 characters.');
+    if (!mobile) throw new Error('Please enter a valid 10-digit mobile number.');
     const check = await validateRealEmail(email);
     if (!check.ok) throw new Error(check.error || 'Invalid email.');
 
     const existing = db.users.find((u) => u.email === email);
     if (existing && existing.emailVerified) {
-      throw new Error('This email is already registered. Please sign in.');
+      throw new Error('This email is already registered. Please login.');
     }
     const { hash, salt } = await hashPassword(pw);
     const otpCode = makeOtp();
@@ -306,6 +315,7 @@ export async function handleStaticFallback<T>(
 
     if (existing) {
       existing.name = cleanName;
+      existing.mobile = mobile;
       existing.pwHash = hash;
       existing.pwSalt = salt;
       existing.role = assignedRole;
@@ -315,6 +325,7 @@ export async function handleStaticFallback<T>(
       db.users.push({
         email,
         name: cleanName,
+        mobile,
         role: assignedRole,
         emailVerified: false,
         credits: 0,
@@ -763,15 +774,26 @@ export async function handleStaticFallback<T>(
   }
 
   if (method === 'POST' && pathname === '/api/contact') {
-    db.messages.unshift({
-      id: 'MSG-' + Date.now().toString(36).toUpperCase(),
-      name: String(body.name || '').trim(),
-      email: String(body.email || '').trim(),
-      message: String(body.message || '').trim(),
-      date: new Date().toISOString(),
-    });
+    const name = String(body.name || '').trim().slice(0, 80);
+    const email = String(body.email || '').trim().toLowerCase().slice(0, 120);
+    const message = String(body.message || '').trim().slice(0, 3000);
+    const kind = body.kind ? String(body.kind).slice(0, 20) : '';
+    const mobile = cleanMobile(body.mobile);
+    const ratingN = Number(body.rating);
+    const rating = ratingN >= 1 && ratingN <= 5 ? Math.round(ratingN) : undefined;
+    const page = body.page ? String(body.page).slice(0, 120) : undefined;
+    if (!name || !email || !message) throw new Error('All fields required.');
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) throw new Error('Please enter a valid email.');
+    if (kind && !mobile) throw new Error('Please enter a valid 10-digit mobile number.');
+    if (message.length < 10) throw new Error('Please write at least 10 characters.');
+    const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').replace(/\n— page:.*$/, '').trim();
+    if (db.messages.some((m) => m.email === email && norm(m.message) === norm(message))) throw new Error('You have already sent this same message. Please write something new.');
+    const hourAgo = Date.now() - 3600_000;
+    if (db.messages.filter((m) => m.email === email && Date.parse(m.date) > hourAgo).length >= 5) throw new Error('Too many messages. Please try again after an hour.');
+    const id = (kind ? 'FB-' : 'MSG-') + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
+    db.messages.unshift({ id, name, email, message, date: new Date().toISOString(), mobile: mobile || undefined, kind: kind || undefined, rating, page });
     saveLocalDb(db);
-    return { ok: true } as T;
+    return { ok: true, id } as T;
   }
 
   if (method === 'GET' && pathname === '/api/admin/export') {

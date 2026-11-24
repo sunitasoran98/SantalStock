@@ -39,6 +39,7 @@ export function PhotoTile({
       {!imgErr && src ? (
         <img
           loading="lazy"
+          decoding="async"
           src={src}
           alt={asset.title}
           width={asset.w}

@@ -18,10 +18,14 @@ import { TextReader } from './components/TextReader';
 import type { AuthPortal } from './lib/portals';
 const AuthModal = React.lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
 import { AdminEditable } from './components/AdminEditable';
-import { AdminEditModal } from './components/AdminEditModal';
+const AdminEditModal = React.lazy(() => import('./components/AdminEditModal').then((m) => ({ default: m.AdminEditModal })));
 import { AdminDock } from './components/AdminDock';
-import { AssetDetailPage, CartCheckoutPage, downloadFullAsset, OrderCertInvoicePage } from './pages/ShopPages';
-import { AdminDashboard, ContributorPage } from './pages/ContributorAndAdminPages';
+const AssetDetailPage = React.lazy(() => import('./pages/ShopPages').then((m) => ({ default: m.AssetDetailPage })));
+const CartCheckoutPage = React.lazy(() => import('./pages/ShopPages').then((m) => ({ default: m.CartCheckoutPage })));
+const OrderCertInvoicePage = React.lazy(() => import('./pages/ShopPages').then((m) => ({ default: m.OrderCertInvoicePage })));
+const downloadFullAsset: typeof import('./pages/ShopPages').downloadFullAsset = (...a) => import('./pages/ShopPages').then((m) => m.downloadFullAsset(...a));
+const AdminDashboard = React.lazy(() => import('./pages/ContributorAndAdminPages').then((m) => ({ default: m.AdminDashboard })));
+const ContributorPage = React.lazy(() => import('./pages/ContributorAndAdminPages').then((m) => ({ default: m.ContributorPage })));
 import type {
   AdminEditTarget,
   Asset,
@@ -73,7 +77,7 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [messages, setMessages] = useState<{ id: string; name: string; email: string; message: string; date: string }[]>([]);
+  const [messages, setMessages] = useState<import('./types').ContactMessage[]>([]);
   const [dlCounts, setDlCounts] = useState<Record<string, number>>({});
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -1568,7 +1572,17 @@ export default function App() {
         toast={toast}
       />
 
-      <main className="flex-1">{renderPage()}</main>
+      <main className="flex-1">
+        <React.Suspense
+          fallback={
+            <div className="wrap py-20 flex justify-center" aria-busy="true">
+              <span className="w-8 h-8 rounded-full border-[3px] border-[#e1e5ec] border-t-[#d6262f] animate-spin" />
+            </div>
+          }
+        >
+          {renderPage()}
+        </React.Suspense>
+      </main>
 
       <Footer
         lang={lang}
@@ -1607,6 +1621,7 @@ export default function App() {
       )}
 
       {adminEditTarget && user?.role === 'admin' && (
+        <React.Suspense fallback={null}>
         <AdminEditModal
           target={adminEditTarget}
           siteConfig={siteConfig}
@@ -1618,6 +1633,7 @@ export default function App() {
           onDeletePhoto={handleDeletePhoto}
           toast={toast}
         />
+        </React.Suspense>
       )}
 
       {toastMsg && (

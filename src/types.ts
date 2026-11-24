@@ -13,6 +13,7 @@ export interface User {
   credits: number;
   plan: { id: string; since: string } | null;
   joined: string;
+  mobile?: string;
   company?: string;
   gstin?: string;
   state?: string;
@@ -312,3 +313,15 @@ export interface GitHubCommitInfo {
   archiveZipUrl: string;
 }
 
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  date: string;
+  mobile?: string;
+  kind?: string;
+  rating?: number;
+  page?: string;
+}

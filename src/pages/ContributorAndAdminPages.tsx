@@ -451,7 +451,7 @@ interface AdminDashboardProps {
   orders: Order[];
   payouts: Payout[];
   users: User[];
-  messages: { id: string; name: string; email: string; message: string; date: string }[];
+  messages: import('../types').ContactMessage[];
   siteConfig: SiteConfig;
   money: (n: number) => string;
   adminMode: boolean;
@@ -843,11 +843,18 @@ export function AdminDashboard({
           <div className="space-y-3">
             {messages.map((m) => (
               <div key={m.id} className="bg-white border border-[#d9dbe1] rounded-xl p-4">
-                <div className="flex justify-between text-xs text-[#5c6170]">
-                  <b>{m.name} ({m.email})</b>
-                  <span>{new Date(m.date).toLocaleString('en-IN')}</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5c6170]">
+                  <span className="flex flex-wrap items-center gap-2">
+                    {m.kind && <span className="px-2 py-0.5 rounded-full bg-[#e8f0ff] text-[#174ea6] font-bold">{m.kind}</span>}
+                    <b className="text-[#011f43]">{m.name}</b>
+                    <a href={`mailto:${m.email}`} className="text-[#1f6fd1]">{m.email}</a>
+                    {m.mobile && <a href={`tel:+91${m.mobile}`} className="text-[#1b8a4b]">+91 {m.mobile}</a>}
+                    {m.rating ? <span className="text-[#f5b301]" aria-label={`${m.rating} stars`}>{'★'.repeat(m.rating)}<span className="text-[#c9d1de]">{'★'.repeat(5 - m.rating)}</span></span> : null}
+                  </span>
+                  <span className="font-mono">{m.id} · {new Date(m.date).toLocaleString('en-IN')}</span>
                 </div>
-                <p className="text-sm mt-2 mb-0">{m.message}</p>
+                <p className="text-sm mt-2 mb-0 whitespace-pre-wrap">{m.message}</p>
+                {m.page && <div className="text-[11px] text-[#8a93a6] mt-1">Page: {m.page}</div>}
               </div>
             ))}
           </div>

@@ -9,7 +9,7 @@ import {
 } from '../../src/lib/githubSync';
 import { buildZip } from '../../src/lib/zipBuilder';
 import { cleanFingerprint, findDuplicates } from '../../src/lib/dupMatch';
-import type { Asset, GitHubSyncConfig, Order, Payout, SiteConfig, User, UserRole } from '../../src/types';
+import type { Asset, ContactMessage, GitHubSyncConfig, Order, Payout, SiteConfig, User, UserRole } from '../../src/types';
 
 /* Minimal Cloudflare Pages Function ambient types (zero external @cloudflare/workers-types needed) */
 interface KVNamespaceLike {
@@ -32,6 +32,8 @@ interface CfEnv {
   SANTALSTOCK_KV?: KVNamespaceLike;
   SANTALSTOCK_R2?: R2BucketLike;
   SERPAPI_KEY?: string;
+  /** Testing only: "1" shows OTP on screen when email is not set up. Never set on the live site. */
+  ALLOW_SCREEN_OTP?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   GITHUB_TOKEN?: string;
@@ -47,6 +49,13 @@ interface CfContext {
   waitUntil?: (p: Promise<unknown>) => void;
 }
 
+function cleanMobile(v: unknown): string {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+  return /^[6-9]\d{9}$/.test(d) ? d : '';
+}
+
 interface StoredUser extends User {
   pwHash: string;
   pwSalt: string;
@@ -54,6 +63,8 @@ interface StoredUser extends User {
   otpExpires?: number;
   resetCode?: string;
   resetExpires?: number;
+  resetTries?: number;
+  resetSentAt?: number;
 }
 
 interface SessionRecord {
@@ -71,7 +82,7 @@ interface Database {
   payouts: Payout[];
   lightbox: Record<string, Record<string, string[]>>;
   newsletter: string[];
-  messages: { id: string; name: string; email: string; message: string; date: string }[];
+  messages: ContactMessage[];
   siteConfig: SiteConfig;
   githubSync: GitHubSyncConfig;
 }
@@ -572,20 +583,25 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/auth/register') {
     const body = await readBody(request);
+    if (!env.RESEND_API_KEY && env.ALLOW_SCREEN_OTP !== '1') {
+      return json({ error: 'Email service is not set up yet. Please contact support.' }, 503);
+    }
     const email = String(body.email || '').trim().toLowerCase();
     const cleanName = String(body.name || '').trim();
     const pw = String(body.password || '');
+    const mobile = cleanMobile(body.mobile);
     const role = body.role;
 
     if (!cleanName || cleanName.length < 2) return json({ error: 'Please enter your full name.' }, 400);
     if (pw.length < 6) return json({ error: 'Password must be at least 6 characters.' }, 400);
+    if (!mobile) return json({ error: 'Please enter a valid 10-digit mobile number.' }, 400);
 
     const check = await validateRealEmail(email);
     if (!check.ok) return json({ error: check.error }, 400);
 
     const existing = db.users.find((u) => u.email === email);
     if (existing && existing.emailVerified) {
-      return json({ error: 'This email is already registered. Please sign in.' }, 400);
+      return json({ error: 'This email is already registered. Please login.' }, 400);
     }
 
     const { hash, salt } = await hashPassword(pw);
@@ -599,6 +615,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
     if (existing) {
       existing.name = cleanName;
+      existing.mobile = mobile;
       existing.pwHash = hash;
       existing.pwSalt = salt;
       existing.role = assignedRole;
@@ -608,6 +625,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       db.users.push({
         email,
         name: cleanName,
+        mobile,
         role: assignedRole,
         emailVerified: false,
         credits: 0,
@@ -628,7 +646,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       verificationRequired: true,
       email,
       sentViaSmtp: delivery.sentViaSmtp,
-      previewCode: delivery.sentViaSmtp ? undefined : otpCode,
+      previewCode: delivery.sentViaSmtp || env.ALLOW_SCREEN_OTP !== '1' ? undefined : otpCode,
       message: delivery.sentViaSmtp
         ? `Verification code sent to ${email}. Check your inbox.`
         : `Verification code generated for ${email}.`,
@@ -655,6 +673,9 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/auth/resend-otp') {
     const body = await readBody(request);
+    if (!env.RESEND_API_KEY && env.ALLOW_SCREEN_OTP !== '1') {
+      return json({ error: 'Email service is not set up yet. Please contact support.' }, 503);
+    }
     const email = String(body.email || '').trim().toLowerCase();
     const u = db.users.find((x) => x.email === email);
     if (!u) return json({ error: 'Account not found.' }, 404);
@@ -666,7 +687,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const delivery = await sendVerificationEmail(env, email, 'Your new SantalStock verification code', otpCode, 'email verification');
     return json({
       sentViaSmtp: delivery.sentViaSmtp,
-      previewCode: delivery.sentViaSmtp ? undefined : otpCode,
+      previewCode: delivery.sentViaSmtp || env.ALLOW_SCREEN_OTP !== '1' ? undefined : otpCode,
       message: delivery.sentViaSmtp ? `New code sent to ${email}.` : 'New verification code generated.',
     });
   }
@@ -689,7 +710,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
         verificationRequired: true,
         email,
         sentViaSmtp: delivery.sentViaSmtp,
-        previewCode: delivery.sentViaSmtp ? undefined : otpCode,
+        previewCode: delivery.sentViaSmtp || env.ALLOW_SCREEN_OTP !== '1' ? undefined : otpCode,
         message: 'Please verify your email address before signing in.',
       });
     }
@@ -703,19 +724,36 @@ export async function onRequest(context: CfContext): Promise<Response> {
   if (method === 'POST' && pathname === '/api/auth/forgot-password') {
     const body = await readBody(request);
     const email = String(body.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) return json({ error: 'Please enter a valid email address.' }, 400);
+    const screenOtp = env.ALLOW_SCREEN_OTP === '1';
+    if (!env.RESEND_API_KEY && !screenOtp) {
+      return json({ error: 'Email service is not set up yet. Please contact support.' }, 503);
+    }
     const u = db.users.find((x) => x.email === email);
     if (!u) return json({ error: 'No account found with this email.' }, 404);
+    if (u.resetSentAt && Date.now() - u.resetSentAt < 60_000) {
+      const wait = Math.ceil((60_000 - (Date.now() - u.resetSentAt)) / 1000);
+      return json({ error: `Please wait ${wait} seconds before asking for a new code.`, retryAfter: wait }, 429);
+    }
     const resetCode = makeOtp();
     u.resetCode = resetCode;
-    u.resetExpires = Date.now() + 15 * 60 * 1000;
+    u.resetExpires = Date.now() + 10 * 60 * 1000;
+    u.resetTries = 0;
+    u.resetSentAt = Date.now();
     await saveDb(env, db);
 
     const delivery = await sendVerificationEmail(env, email, 'SantalStock Password Reset Code', resetCode, 'password reset');
+    if (!delivery.sentViaSmtp && !screenOtp) {
+      u.resetSentAt = undefined;
+      await saveDb(env, db);
+      return json({ error: 'Could not send the email right now. Please try again in a minute.' }, 502);
+    }
     return json({
       ok: true,
       email,
       sentViaSmtp: delivery.sentViaSmtp,
-      previewCode: delivery.sentViaSmtp ? undefined : resetCode,
+      previewCode: delivery.sentViaSmtp || env.ALLOW_SCREEN_OTP !== '1' ? undefined : resetCode,
+      message: delivery.sentViaSmtp ? `Reset code sent to ${email}. Check inbox & spam.` : 'Test mode: email not set up.',
     });
   }
 
@@ -726,8 +764,19 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const newPassword = String(body.newPassword || '');
     if (newPassword.length < 6) return json({ error: 'Password must be at least 6 characters.' }, 400);
     const u = db.users.find((x) => x.email === email);
-    if (!u || !u.resetCode || u.resetCode !== code) return json({ error: 'Invalid reset code.' }, 400);
-    if (u.resetExpires && Date.now() > u.resetExpires) return json({ error: 'Reset code expired.' }, 400);
+    if (!u || !u.resetCode) return json({ error: 'Please request a new reset code.' }, 400);
+    if (u.resetExpires && Date.now() > u.resetExpires) return json({ error: 'Reset code expired. Please request a new one.' }, 400);
+    if (u.resetCode !== code) {
+      u.resetTries = (u.resetTries || 0) + 1;
+      if (u.resetTries >= 5) {
+        u.resetCode = undefined;
+        u.resetExpires = undefined;
+        await saveDb(env, db);
+        return json({ error: 'Too many wrong codes. Please request a new code.' }, 429);
+      }
+      await saveDb(env, db);
+      return json({ error: `Wrong code. ${5 - u.resetTries} tries left.` }, 400);
+    }
 
     const { hash, salt } = await hashPassword(newPassword);
     u.pwHash = hash;
@@ -735,6 +784,9 @@ export async function onRequest(context: CfContext): Promise<Response> {
     u.emailVerified = true;
     u.resetCode = undefined;
     u.resetExpires = undefined;
+    u.resetTries = 0;
+    // Log out every other device that had this account open.
+    db.sessions = db.sessions.filter((x) => x.email !== u.email);
     const { token, cookie } = await createSession(env, db, u.email);
     return json({ user: sanitizeUser(u), token }, 200, { 'Set-Cookie': cookie });
   }
@@ -1224,17 +1276,26 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
   if (method === 'POST' && pathname === '/api/contact') {
     const body = await readBody(request);
-    const { name, email, message } = body;
+    const name = String(body.name || '').trim().slice(0, 80);
+    const email = String(body.email || '').trim().toLowerCase().slice(0, 120);
+    const message = String(body.message || '').trim().slice(0, 3000);
+    const kind = body.kind ? String(body.kind).slice(0, 20) : '';
+    const mobile = cleanMobile(body.mobile);
+    const ratingN = Number(body.rating);
+    const rating = ratingN >= 1 && ratingN <= 5 ? Math.round(ratingN) : undefined;
+    const page = body.page ? String(body.page).slice(0, 120) : undefined;
     if (!name || !email || !message) return json({ error: 'All fields required.' }, 400);
-    db.messages.unshift({
-      id: 'MSG-' + Date.now().toString(36).toUpperCase(),
-      name: String(name).trim(),
-      email: String(email).trim(),
-      message: String(message).trim(),
-      date: new Date().toISOString(),
-    });
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) return json({ error: 'Please enter a valid email.' }, 400);
+    if (kind && !mobile) return json({ error: 'Please enter a valid 10-digit mobile number.' }, 400);
+    if (message.length < 10) return json({ error: 'Please write at least 10 characters.' }, 400);
+    const norm = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').replace(/\n— page:.*$/, '').trim();
+    if (db.messages.some((m) => m.email === email && norm(m.message) === norm(message))) return json({ error: 'You have already sent this same message. Please write something new.' }, 400);
+    const hourAgo = Date.now() - 3600_000;
+    if (db.messages.filter((m) => m.email === email && Date.parse(m.date) > hourAgo).length >= 5) return json({ error: 'Too many messages. Please try again after an hour.' }, 400);
+    const id = (kind ? 'FB-' : 'MSG-') + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
+    db.messages.unshift({ id, name, email, message, date: new Date().toISOString(), mobile: mobile || undefined, kind: kind || undefined, rating, page });
     await saveDb(env, db);
-    return json({ ok: true });
+    return json({ ok: true, id });
   }
 
   if (method === 'GET' && pathname === '/api/admin/export') {
