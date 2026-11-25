@@ -9,7 +9,7 @@ import {
   thumbUrl,
   tr,
 } from './data/defaults';
-import { api, setToken } from './lib/api';
+import { api, getToken, setToken } from './lib/api';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { SearchCapsule } from './components/SearchCapsule';
@@ -73,7 +73,24 @@ export default function App() {
 
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
   const [assets, setAssets] = useState<Asset[]>(SEED_ASSETS);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    // Show the logged-in screen instantly after a reload; the server confirms it a moment later.
+    try {
+      if (!getToken()) return null;
+      const raw = localStorage.getItem('ss_user_cache_v1');
+      return raw ? (JSON.parse(raw) as User) : null;
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (user) localStorage.setItem('ss_user_cache_v1', JSON.stringify(user));
+      else localStorage.removeItem('ss_user_cache_v1');
+    } catch {
+      // ignore
+    }
+  }, [user]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -143,6 +160,7 @@ export default function App() {
       setSiteConfig(data.siteConfig);
       setAssets(data.assets);
       setUser(data.user);
+      if (!data.user && getToken()) setToken(''); // server says this login is no longer valid
       setOrders(data.orders || []);
       setPayouts(data.payouts || []);
       setUsers(data.users || []);
@@ -886,7 +904,7 @@ export default function App() {
                 setToken('');
                 setUser(null);
                 setAdminMode(false);
-                toast('Signed out');
+                toast('Logged out');
                 navigate('#/');
               }}
               className="px-4 py-2 rounded-lg border border-[#d9dbe1] bg-white text-[#011f43] text-sm font-semibold cursor-pointer"

@@ -32,6 +32,8 @@ interface CfEnv {
   SANTALSTOCK_KV?: KVNamespaceLike;
   SANTALSTOCK_R2?: R2BucketLike;
   SERPAPI_KEY?: string;
+  /** Optional: long random text used to sign login tokens. */
+  SESSION_SECRET?: string;
   /** Testing only: "1" shows OTP on screen when email is not set up. Never set on the live site. */
   ALLOW_SCREEN_OTP?: string;
   RESEND_API_KEY?: string;
@@ -69,6 +71,8 @@ interface StoredUser extends User {
   resetExpires?: number;
   resetTries?: number;
   resetSentAt?: number;
+  /** Tokens issued before this time are invalid (set on password reset). */
+  tokenEpoch?: number;
 }
 
 interface SessionRecord {
@@ -89,6 +93,8 @@ interface Database {
   messages: ContactMessage[];
   siteConfig: SiteConfig;
   githubSync: GitHubSyncConfig;
+  sessionSecret?: string;
+  revoked?: string[];
 }
 
 function defaultGitHubSync(env: CfEnv): GitHubSyncConfig {
@@ -237,6 +243,8 @@ async function createInitialDb(env: CfEnv): Promise<Database> {
     messages: [],
     siteConfig: structuredClone(DEFAULT_SITE_CONFIG),
     githubSync: defaultGitHubSync(env),
+    sessionSecret: randomHex(32),
+    revoked: [],
   };
 }
 
@@ -259,6 +267,8 @@ async function loadDb(env: CfEnv): Promise<Database> {
           messages: parsed.messages || [],
           siteConfig: deepMergeConfig(parsed.siteConfig),
           githubSync: { ...defaultGitHubSync(env), ...(parsed.githubSync || {}) },
+          sessionSecret: parsed.sessionSecret || init.sessionSecret,
+          revoked: parsed.revoked || [],
         };
       }
     } catch {
@@ -406,9 +416,67 @@ function extractToken(request: Request): string {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-function getAuthUser(request: Request, db: Database): StoredUser | null {
+/* ===== Long-lived signed login tokens =====
+ * Token = v2.<email b64url>.<issuedAt>.<rand>.<hmac>. The signature lets a refresh be
+ * recognised even if KV has not caught up yet, so admin stays logged in after reload.
+ * Admin tokens never expire; others last 90 days. Logout revokes the token.
+ */
+const USER_TOKEN_DAYS = 90;
+const VERIFIED_AUTH = new WeakMap<Request, string>();
+
+function b64url(str: string): string {
+  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function unb64url(str: string): string {
+  const pad = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
+  return decodeURIComponent(escape(atob(pad)));
+}
+function sessionSecretOf(env: CfEnv, db: Database): string {
+  if (env.SESSION_SECRET) return env.SESSION_SECRET;
+  if (!db.sessionSecret) db.sessionSecret = randomHex(32);
+  return db.sessionSecret;
+}
+async function hmacHex(secret: string, data: string): Promise<string> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function makeSignedToken(env: CfEnv, db: Database, email: string): Promise<string> {
+  const e = b64url(email);
+  const iat = String(Date.now());
+  const rand = randomHex(12);
+  const sig = await hmacHex(sessionSecretOf(env, db), `${e}.${iat}.${rand}`);
+  return `v2.${e}.${iat}.${rand}.${sig}`;
+}
+/** Verifies a signed token once per request (async), so getAuthUser can stay sync. */
+async function preVerifyToken(request: Request, env: CfEnv, db: Database): Promise<void> {
   const token = extractToken(request);
-  if (!token) return null;
+  if (!token.startsWith('v2.')) return;
+  const parts = token.split('.');
+  if (parts.length !== 5) return;
+  const [, e, iat, rand, sig] = parts;
+  if (db.revoked?.includes(sig)) return;
+  const want = await hmacHex(sessionSecretOf(env, db), `${e}.${iat}.${rand}`);
+  if (want !== sig) return;
+  let email = '';
+  try {
+    email = unb64url(e);
+  } catch {
+    return;
+  }
+  const u = db.users.find((x) => x.email === email);
+  if (!u) return;
+  const issued = Number(iat);
+  if (u.tokenEpoch && issued < u.tokenEpoch) return;
+  if (u.role !== 'admin' && Date.now() - issued > USER_TOKEN_DAYS * 86400_000) return;
+  VERIFIED_AUTH.set(request, email);
+}
+
+function getAuthUser(request: Request, db: Database): StoredUser | null {
+  const signed = VERIFIED_AUTH.get(request);
+  if (signed) return db.users.find((u) => u.email === signed) || null;
+  const token = extractToken(request);
+  if (!token || token.startsWith('v2.')) return null;
   const sess = db.sessions.find((s) => s.token === token);
   if (!sess) return null;
   return db.users.find((u) => u.email === sess.email) || null;
@@ -454,13 +522,19 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   }
 }
 
+const COOKIE_MAX_AGE = 400 * 24 * 60 * 60; // browsers cap cookies at ~400 days; it is renewed on every visit
+
+function sessionCookie(token: string): string {
+  return `ss_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${COOKIE_MAX_AGE}`;
+}
+
 async function createSession(env: CfEnv, db: Database, email: string): Promise<{ token: string; cookie: string }> {
-  const token = randomHex(32);
-  db.sessions = db.sessions.filter((s) => Date.now() - s.createdAt < 30 * 24 * 60 * 60 * 1000);
-  db.sessions.push({ token, email, createdAt: Date.now() });
+  const token = await makeSignedToken(env, db, email);
+  // Old style KV sessions are no longer needed; drop expired ones to keep the DB small.
+  db.sessions = db.sessions.filter((x) => Date.now() - x.createdAt < 30 * 24 * 60 * 60 * 1000);
+  if (db.revoked && db.revoked.length > 2000) db.revoked = db.revoked.slice(-2000);
   await saveDb(env, db);
-  const cookie = `ss_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=${30 * 24 * 60 * 60}`;
-  return { token, cookie };
+  return { token, cookie: sessionCookie(token) };
 }
 
 /* ================= R2 IMAGE STORAGE ================= */
@@ -575,6 +649,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
   if (method === 'GET' && prevImg) return serveImage(env, `prev/${prevImg[1]}.jpg`, true);
 
   const db = await loadDb(env);
+  await preVerifyToken(request, env, db);
 
   if (env.SANTALSTOCK_R2 && db.assets.some((a) => (a.prevUrl || '').startsWith('data:') || (a.fullUrl || '').startsWith('data:'))) {
     try {
@@ -822,6 +897,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     u.resetExpires = undefined;
     u.resetTries = 0;
     // Log out every other device that had this account open.
+    u.tokenEpoch = Date.now();
     db.sessions = db.sessions.filter((x) => x.email !== u.email);
     const { token, cookie } = await createSession(env, db, u.email);
     return json({ user: sanitizeUser(u), token }, 200, { 'Set-Cookie': cookie });
@@ -831,6 +907,10 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const token = extractToken(request);
     if (token) {
       db.sessions = db.sessions.filter((s) => s.token !== token);
+      if (token.startsWith('v2.')) {
+        const sig = token.split('.')[4];
+        if (sig) db.revoked = [...(db.revoked || []), sig].slice(-2000);
+      }
       await saveDb(env, db);
     }
     return json({ ok: true }, 200, {
@@ -890,7 +970,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       lightbox,
       dlCounts,
       messages: u?.role === 'admin' ? db.messages : [],
-    });
+    }, 200, u && VERIFIED_AUTH.has(request) ? { 'Set-Cookie': sessionCookie(extractToken(request)) } : {});
   }
 
   if (method === 'PUT' && pathname === '/api/cms') {

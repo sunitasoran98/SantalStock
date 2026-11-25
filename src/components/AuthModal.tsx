@@ -93,7 +93,8 @@ export function AuthModal({ initialMode = 'login', initialPortal = 'buyer', onCl
       setError('This account does not have Admin access.');
       return;
     }
-    setToken(token, remember);
+    // Admin always stays logged in on this device until Logout.
+    setToken(token, remember || u.role === 'admin');
     try {
       if (remember) localStorage.setItem('ss_last_email', u.email);
       else localStorage.removeItem('ss_last_email');
