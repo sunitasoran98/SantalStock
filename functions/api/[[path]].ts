@@ -344,29 +344,34 @@ async function validateRealEmail(email: string): Promise<{ ok: boolean; error?: 
   return { ok: true };
 }
 
+const v = (x?: string) => String(x || '').trim();
 function emailConfigured(env: CfEnv): boolean {
-  return !!env.RESEND_API_KEY || !!(env.EMAILJS_SERVICE_ID && env.EMAILJS_TEMPLATE_ID && env.EMAILJS_PUBLIC_KEY && env.EMAILJS_PRIVATE_KEY);
+  return !!v(env.RESEND_API_KEY) || !!(v(env.EMAILJS_SERVICE_ID) && v(env.EMAILJS_TEMPLATE_ID) && v(env.EMAILJS_PUBLIC_KEY) && v(env.EMAILJS_PRIVATE_KEY));
 }
 
 async function sendViaEmailJs(env: CfEnv, to: string, subject: string, code: string, purpose: string): Promise<boolean> {
-  if (!(env.EMAILJS_SERVICE_ID && env.EMAILJS_TEMPLATE_ID && env.EMAILJS_PUBLIC_KEY && env.EMAILJS_PRIVATE_KEY)) return false;
+  if (!(v(env.EMAILJS_SERVICE_ID) && v(env.EMAILJS_TEMPLATE_ID) && v(env.EMAILJS_PUBLIC_KEY) && v(env.EMAILJS_PRIVATE_KEY))) return false;
   try {
     const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'SantalStock/1.0 (+https://santalstock.pages.dev)', Origin: 'https://santalstock.pages.dev' },
       body: JSON.stringify({
-        service_id: env.EMAILJS_SERVICE_ID,
-        template_id: env.EMAILJS_TEMPLATE_ID,
-        user_id: env.EMAILJS_PUBLIC_KEY,
-        accessToken: env.EMAILJS_PRIVATE_KEY,
+        service_id: v(env.EMAILJS_SERVICE_ID),
+        template_id: v(env.EMAILJS_TEMPLATE_ID),
+        user_id: v(env.EMAILJS_PUBLIC_KEY),
+        accessToken: v(env.EMAILJS_PRIVATE_KEY),
         template_params: { to_email: to, subject, code, purpose, minutes: purpose === 'password reset' ? '10' : '15', site: 'SantalStock' },
       }),
     });
+    if (!res.ok) LAST_EMAIL_ERROR = `EmailJS ${res.status}: ${(await res.text()).slice(0, 200)}`;
+    else LAST_EMAIL_ERROR = '';
     return res.ok;
-  } catch {
+  } catch (e) {
+    LAST_EMAIL_ERROR = `EmailJS network error: ${(e as Error)?.message || e}`;
     return false;
   }
 }
+let LAST_EMAIL_ERROR = '';
 
 async function sendVerificationEmail(
   env: CfEnv,
@@ -675,6 +680,20 @@ export async function onRequest(context: CfContext): Promise<Response> {
   }
 
   /* ================= AUTH ROUTES ================= */
+  // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
+  if (method === 'GET' && pathname === '/api/email-status') {
+    return json({
+      deployHasCode: 'v17',
+      EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
+      EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
+      EMAILJS_PUBLIC_KEY: !!v(env.EMAILJS_PUBLIC_KEY),
+      EMAILJS_PRIVATE_KEY: !!v(env.EMAILJS_PRIVATE_KEY),
+      RESEND_API_KEY: !!v(env.RESEND_API_KEY),
+      ALLOW_SCREEN_OTP: env.ALLOW_SCREEN_OTP === '1',
+      emailReady: emailConfigured(env),
+      lastError: LAST_EMAIL_ERROR || null,
+    });
+  }
   if (method === 'GET' && pathname === '/api/auth/me') {
     const u = getAuthUser(request, db);
     return json({
@@ -857,7 +876,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     if (!delivery.sentViaSmtp && !screenOtp) {
       u.resetSentAt = undefined;
       await saveDb(env, db);
-      return json({ error: 'Could not send the email right now. Please try again in a minute.' }, 502);
+      return json({ error: 'Could not send the email right now. Please try again in a minute.' + (LAST_EMAIL_ERROR ? ' [' + LAST_EMAIL_ERROR + ']' : '') }, 502);
     }
     return json({
       ok: true,
