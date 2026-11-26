@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import ComboBox from '../components/ComboBox';
 import { USE_OPTIONS } from '../data/pickLists';
-import { Pencil, Trash2, Printer, Download } from 'lucide-react';
+import { Pencil, Trash2, Printer, Download, Copy, Volume2 } from 'lucide-react';
 import { DEFAULT_SITE_CONFIG, fullAssetUrl, thumbUrl, tr } from '../data/defaults';
-import { api } from '../lib/api';
+import { api, getToken } from '../lib/api';
 import { PhotoTile } from '../components/PhotoTile';
 import { UpiQr } from '../components/UpiQr';
 import { DonateButton } from '../components/DonateModal';
@@ -42,17 +42,22 @@ export async function downloadFullAsset(asset: Asset, sizeKey: SizeKey, siteConf
       c.getContext('2d')?.drawImage(img, 0, 0, c.width, c.height);
       triggerDownload(c.toDataURL('image/jpeg', 0.92), `SantalStock-${asset.id}-${sizeKey}.jpg`);
     } else {
-      const res = await fetch(url, { credentials: 'include' });
+      const tok = getToken();
+      const res = await fetch(url, { credentials: 'include', headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
       if (!res.ok) {
         const msg = ((await res.json().catch(() => ({}))) as { error?: string }).error;
         toast(msg || 'Download nahi ho saka. License kharidne ke baad try karein.');
         return;
       }
       const blob = await res.blob();
-      triggerDownload(URL.createObjectURL(blob), `SantalStock-${asset.id}-${sizeKey}.jpg`);
+      const obj = URL.createObjectURL(blob);
+      triggerDownload(obj, `SantalStock-${asset.id}-${sizeKey}.jpg`);
+      setTimeout(() => URL.revokeObjectURL(obj), 4000);
+      toast('Download ho gaya ✓');
     }
   } catch {
-    toast('Direct download blocked by CORS; opening image in new view');
+    // Network hiccup: let the browser download it directly (same site, login cookie goes along).
+    triggerDownload(url, `SantalStock-${asset.id}-${sizeKey}.jpg`);
   }
 }
 
@@ -224,57 +229,70 @@ export function AssetDetailPage({
                 draggable={false}
                 referrerPolicy="no-referrer"
                 onClick={() => setZoom(true)}
+                fetchPriority="high"
+                decoding="async"
                 title="Bada dekhein"
                 className="w-full block cursor-zoom-in"
                 style={{ aspectRatio: `${asset.w}/${asset.h}` }}
               />
             </div>
-            <h1 className="dm text-3xl text-[#011f43] mt-4 mb-1">{asset.title}</h1>
-            <div className="mt-2 rounded-xl border border-[#d9dbe1] bg-[#f8faff] p-3 text-sm text-[#5c6170]">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${asset.lic === 'editorial' ? 'bg-[#f2e8fd] text-[#8a2be2]' : 'bg-[#e6f4ea] text-[#11602d]'}`}>
-                  {asset.lic === 'editorial' ? tr(lang, 'ed') : tr(lang, 'rf')}
+            <div className="mt-5 flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <h1 className="dm text-[28px] leading-tight text-[#011f43] m-0 break-words">{asset.title}</h1>
+                <div className="mt-2 flex items-center gap-2 text-sm text-[#5c6170]">
+                  <span className="w-7 h-7 rounded-full bg-[#011f43] text-white text-xs font-bold flex items-center justify-center">{(asset.contributor || 'S').charAt(0).toUpperCase()}</span>
+                  <span>by <b className="text-[#011f43]">{asset.contributor}</b></span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${asset.lic === 'editorial' ? 'bg-[#f2e8fd] text-[#7a22c9]' : 'bg-[#e6f4ea] text-[#11602d]'}`}>
+                  {asset.lic === 'editorial' ? 'Editorial' : 'Royalty-Free'}
                 </span>
-                {isAi && <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#ede9fe] text-[#6d28d9]">AI Generated</span>}
-                <span className="flex-1" />
+                {isAi && <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide bg-[#ede9fe] text-[#6d28d9]">AI Generated</span>}
                 <button
                   type="button"
-                  onClick={() => onSpeak(`${asset.title}. ${tr(lang, 'by')} ${asset.contributor}. ${asset.desc || asset.caption || ''}`)}
-                  className="px-2.5 py-1 rounded-md border border-[#d9dbe1] bg-white text-[#011f43] text-xs font-semibold cursor-pointer"
+                  onClick={() => onSpeak(`${asset.title}. ${asset.contributor}. ${asset.desc || asset.caption || ''}`)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#d9dbe1] bg-white text-[#011f43] text-xs font-semibold cursor-pointer hover:border-[#011f43]"
+                  aria-label="Listen"
                 >
-                  🔊 {tr(lang, 'listen')}
+                  <Volume2 className="w-3.5 h-3.5" /> {tr(lang, 'listen')}
                 </button>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5">
-                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">{tr(lang, 'by')}</div><b className="text-[#111] text-[13px] break-words">{asset.contributor}</b></div>
-                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">ID</div><b className="text-[#111] text-[13px]">{asset.id}</b></div>
-                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">Size</div><b className="text-[#111] text-[13px]">{asset.w}×{asset.h}px</b></div>
-                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">{tr(lang, 'downloads')}</div><b className="text-[#111] text-[13px]">{dlCount(asset)}</b></div>
-              </div>
             </div>
-            <div className="mt-3 rounded-xl border border-[#d9dbe1] bg-white p-4">
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <b className="text-sm text-[#011f43]">Description</b>
-                {(asset.desc || asset.caption) && (
-                  <button type="button" onClick={() => onSpeak(asset.desc || asset.caption || '')} className="px-2 py-0.5 rounded-md border border-[#d9dbe1] bg-white text-[#011f43] text-[11px] font-semibold cursor-pointer">🔊</button>
-                )}
+
+            {(asset.desc || asset.caption) ? (
+              <div className="mt-4 rounded-xl border border-[#e3e6ee] bg-white p-4">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#8a90a0] mb-1.5">Description</div>
+                <p className="text-[14.5px] m-0 leading-relaxed text-[#2b3242] whitespace-pre-line">{asset.desc || asset.caption}</p>
               </div>
-              <p className="text-sm m-0 leading-relaxed text-[#2b3242] whitespace-pre-line">{asset.desc || asset.caption || 'Is photo ka vivaran jald joda jaayega.'}</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5 text-[11.5px] text-[#5c6170]">
-                <span>📂 {asset.cat}</span>
-                {asset.place && <span>📍 {asset.place}</span>}
-                <span>📅 {asset.evdate || asset.date}</span>
-                {isAi && <span className="text-[#6d28d9] font-semibold">🤖 AI Generated</span>}
-              </div>
+            ) : adminMode ? (
+              <button type="button" onClick={() => onAdminEdit({ section: 'editPhoto', itemId: asset.id })} className="mt-4 w-full rounded-xl border border-dashed border-[#b8c2d6] bg-[#f8faff] p-3 text-sm text-[#2f3f8f] font-semibold cursor-pointer">+ Description jodein (sirf admin ko dikhta hai)</button>
+            ) : null}
+
+            <div className="mt-4 rounded-xl border border-[#e3e6ee] bg-white overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-[#eef0f5] text-[11px] font-bold uppercase tracking-wider text-[#8a90a0]">Photo details</div>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 m-0 text-[13.5px]">
+                {([
+                  ['Photo ID', <span className="inline-flex items-center gap-1.5">{asset.id}<button type="button" aria-label="Copy ID" onClick={() => { navigator.clipboard?.writeText(asset.id); toast('ID copied'); }} className="p-0.5 bg-transparent border-0 cursor-pointer text-[#8a90a0] hover:text-[#011f43]"><Copy className="w-3.5 h-3.5" /></button></span>],
+                  ['Dimensions', `${asset.w} × ${asset.h} px · ${((asset.w * asset.h) / 1e6).toFixed(1)} MP`],
+                  ['Format', 'JPEG'],
+                  ['License', asset.lic === 'editorial' ? 'Editorial use only' : 'Royalty-Free'],
+                  ['Category', <a href={`#/search?cat=${encodeURIComponent(asset.cat)}`} onClick={(e) => { e.preventDefault(); onNavigate(`#/search?cat=${encodeURIComponent(asset.cat)}`); }} className="text-[#2f3f8f] no-underline font-semibold">{asset.cat}</a>],
+                  ['Release', asset.lic === 'editorial' ? 'Not applicable' : asset.release === 'none' ? 'Not required' : 'Model / property release on file'],
+                  ...(asset.place ? [['Location', asset.place] as [string, React.ReactNode]] : []),
+                  ['Uploaded', asset.evdate || asset.date],
+                  ['Downloads', String(dlCount(asset))],
+                ] as [string, React.ReactNode][]).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-[#f1f3f7] sm:odd:border-r">
+                    <dt className="text-[#6b7180]">{k}</dt>
+                    <dd className="m-0 font-semibold text-[#111827] text-right break-words">{v}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
-            {asset.lic === 'editorial' ? (
-              <div className="bg-[#f2e8fd] border border-[#dfc8fa] rounded-lg p-3.5 text-sm mt-3">
-                <b>📰 {tr(lang, 'edonly')}.</b> {asset.caption}
-                <div className="text-xs mt-1 text-[#4c247a]">{asset.place ? `📍 ${asset.place}` : ''} · 📅 {asset.evdate || asset.date}</div>
-              </div>
-            ) : (
-              <div className="bg-[#e9f6ee] border border-[#c5e8d1] rounded-lg p-3.5 text-sm text-[#11602d] mt-3">
-                ✓ Royalty-Free · {asset.release === 'none' ? 'Release ki zarurat nahi' : 'Model/property release on file'}
+            {asset.lic === 'editorial' && (
+              <div className="bg-[#f6effd] border border-[#e4d2fa] rounded-xl p-3.5 text-[13px] text-[#4c247a] mt-3">
+                <b>Editorial use only.</b> News, blogs aur education ke liye; vigyapan (advertising) me nahi. {asset.caption}
               </div>
             )}
             <div className="flex gap-2 flex-wrap mt-4">

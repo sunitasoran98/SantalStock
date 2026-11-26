@@ -867,7 +867,7 @@ async function handleRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v24',
+      deployHasCode: 'v25',
       photoStore: env.SANTALSTOCK_R2 ? 'R2' : env.SANTALSTOCK_KV ? 'KV (one key per photo)' : 'none',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),

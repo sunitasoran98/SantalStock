@@ -15,19 +15,23 @@ function readImageForUpload(file: File): Promise<{ w: number; h: number; prevUrl
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const scale = (max: number, q: number) => {
+        const scale = (max: number, q: number, webp = false) => {
           const c = document.createElement('canvas');
           const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
           c.width = Math.round(img.naturalWidth * s);
           c.height = Math.round(img.naturalHeight * s);
           c.getContext('2d')?.drawImage(img, 0, 0, c.width, c.height);
+          if (webp) {
+            const w = c.toDataURL('image/webp', q);
+            if (w.startsWith('data:image/webp')) return w;
+          }
           return c.toDataURL('image/jpeg', q);
         };
         resolve({
           w: img.naturalWidth,
           h: img.naturalHeight,
-          prevUrl: scale(1100, 0.8),
-          fullUrl: scale(2600, 0.88),
+          prevUrl: scale(1000, 0.74, true), // small WebP preview = fast pages
+          fullUrl: scale(2600, 0.88), // buyer file stays JPEG
         });
       };
       img.onerror = reject;

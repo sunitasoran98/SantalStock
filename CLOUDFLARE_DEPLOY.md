@@ -53,16 +53,14 @@ This project is pre-configured for **Cloudflare Pages** with:
 
 ---
 
-## Default Admin Login
-- **Email**: `admin@santalstock.in`
-- **Password**: `admin123`
-- This demo login works only until the owner admin is set up.
+## Admin Login
+- Only the owner admin (set up below) can log in as Admin. The old demo login is permanently off.
 
 ## First-time owner Admin setup
 1. Set up email OTP first (EmailJS or Resend, below).
 2. Site → Login → Admin → "Set admin password".
 3. Name, `sunitasoran98@gmail.com`, mobile, password, confirm → OTP comes to that Gmail → enter it.
-4. You are now Admin. The demo login `admin@santalstock.in` / `admin123` is switched off automatically.
+4. You are now Admin. The temporary demo login is switched off automatically.
 5. Forgot it later? Admin → Forgot? → OTP to the same Gmail.
 
 ## Email OTP with EmailJS (no domain needed)
