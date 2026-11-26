@@ -14,6 +14,7 @@ import {
 import { PORTALS, type AuthPortal } from '../lib/portals';
 import { getSantaliDateTime, LANGS, tr } from '../data/defaults';
 import { SearchCapsule } from './SearchCapsule';
+import { openDonate } from './DonateModal';
 import type { AdminEditTarget, LangCode, SiteConfig, User } from '../types';
 
 interface HeaderProps {
@@ -283,6 +284,19 @@ export function Header({
                 AI<br />search
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={openDonate}
+            title="Donate / Support"
+            aria-label="Donate"
+            className="flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
+          >
+            <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-gradient-to-br from-[#e11d48] to-[#f97316] text-white ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5 shadow-sm">
+              <Heart className="w-4 h-4 fill-white" />
+            </span>
+            {!isCompact && <span className="hidden xl:inline ml-1.5 text-xs font-bold text-[#c8102e]">Donate</span>}
           </button>
 
           <button

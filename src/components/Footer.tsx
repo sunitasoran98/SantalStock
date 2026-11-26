@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, MapPin, MessageSquarePlus, Pencil } from 'lucide-react';
 import { FeedbackModal, openFeedback } from './FeedbackModal';
+import { DonateButton, DonateModal } from './DonateModal';
 import { LANGS, tr } from '../data/defaults';
 import { api } from '../lib/api';
 import type { AdminEditTarget, LangCode, SiteConfig } from '../types';
@@ -140,6 +141,7 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
             >
               <MessageSquarePlus className="w-3.5 h-3.5 text-[#e0730f]" aria-hidden /> Suggestion / Feedback
             </button>
+            <DonateButton />
             </div>
           </div>
 
@@ -193,6 +195,7 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
         </div>
       </div>
       <FeedbackModal toast={toast} />
+      <DonateModal siteConfig={siteConfig} toast={toast} />
     </footer>
   );
 }

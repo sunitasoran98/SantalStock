@@ -75,6 +75,8 @@ export const CATEGORY_OPTIONS = [
   'Sports & Games',
   'Travel',
   'Editorial / News',
+  'AI Generated',
+  'AI Art & Illustration',
 ];
 
 export const USE_OPTIONS = [

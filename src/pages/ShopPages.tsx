@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ComboBox from '../components/ComboBox';
 import { USE_OPTIONS } from '../data/pickLists';
 import { Pencil, Trash2, Printer, Download } from 'lucide-react';
@@ -6,6 +6,7 @@ import { DEFAULT_SITE_CONFIG, fullAssetUrl, thumbUrl, tr } from '../data/default
 import { api } from '../lib/api';
 import { PhotoTile } from '../components/PhotoTile';
 import { UpiQr } from '../components/UpiQr';
+import { DonateButton } from '../components/DonateModal';
 import type { AdminEditTarget, Asset, CartItem, LangCode, LicenseOptionKey, Order, SiteConfig, SizeKey, User } from '../types';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -96,6 +97,43 @@ export function AssetDetailPage({
   const allowed: LicenseOptionKey[] = asset?.lic === 'editorial' ? ['ed'] : ['std', 'ext', 'ed'];
   const [lic, setLic] = useState<LicenseOptionKey>(allowed[0]);
   const [size, setSize] = useState<SizeKey>('M');
+  const [zoom, setZoom] = useState(false);
+  // SEO: page title, description and Google image data for each photo.
+  useEffect(() => {
+    if (!asset) return;
+    const prevTitle = document.title;
+    document.title = `${asset.title} | SantalStock`;
+    let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    const prevDesc = meta?.content || '';
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'description';
+      document.head.appendChild(meta);
+    }
+    meta.content = (asset.desc || asset.caption || `${asset.title} - ${asset.cat} photo on SantalStock`).slice(0, 155);
+    const ld = document.createElement('script');
+    ld.type = 'application/ld+json';
+    ld.id = 'ss-asset-ld';
+    ld.text = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'ImageObject',
+      name: asset.title,
+      description: asset.desc || asset.caption || asset.title,
+      contentUrl: new URL(thumbUrl(asset, 800), window.location.origin).href,
+      creator: { '@type': 'Person', name: asset.contributor },
+      copyrightNotice: `© ${asset.contributor} / SantalStock`,
+      creditText: 'SantalStock',
+      license: `${window.location.origin}/#/licenses`,
+      acquireLicensePage: `${window.location.origin}/#/asset/${asset.id}`,
+    });
+    document.getElementById('ss-asset-ld')?.remove();
+    document.head.appendChild(ld);
+    return () => {
+      document.title = prevTitle;
+      if (meta) meta.content = prevDesc;
+      ld.remove();
+    };
+  }, [asset]);
 
   if (!asset) return <div className="wrap py-16 text-center text-[#5c6170]">Asset nahi mila.</div>;
 
@@ -129,8 +167,29 @@ export function AssetDetailPage({
     }
   }
 
+  const isAi = /\bai\b|ai generated|ai art/i.test(asset.cat) || asset.kw.some((k) => /^(ai|ai generated|ai art)$/i.test(k));
+  const pageUrl = `${window.location.origin}/#/asset/${asset.id}`;
+  const shareText = `${asset.title} | SantalStock`;
+  async function share(kind: 'wa' | 'fb' | 'x' | 'copy' | 'native') {
+    const u = encodeURIComponent(pageUrl);
+    const t = encodeURIComponent(shareText);
+    if (kind === 'native' && navigator.share) return navigator.share({ title: shareText, url: pageUrl }).catch(() => undefined);
+    if (kind === 'copy') {
+      await navigator.clipboard?.writeText(pageUrl);
+      return toast('Link copy ho gaya');
+    }
+    const href = kind === 'wa' ? `https://wa.me/?text=${t}%20${u}` : kind === 'fb' ? `https://www.facebook.com/sharer/sharer.php?u=${u}` : `https://twitter.com/intent/tweet?text=${t}&url=${u}`;
+    window.open(href, '_blank', 'noopener,noreferrer');
+  }
+
   return (
     <>
+      {zoom && (
+        <div className="fixed inset-0 z-[150] bg-black/85 flex items-center justify-center p-3 cursor-zoom-out" onClick={() => setZoom(false)} onContextMenu={(e) => e.preventDefault()}>
+          <img src={thumbUrl(asset, 1600)} alt={asset.title} draggable={false} className="max-w-full max-h-full object-contain rounded-lg" />
+          <span className="absolute top-3 right-4 text-white text-sm font-semibold">✕ Band karein</span>
+        </div>
+      )}
       <section className="wrap py-8">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <p className="text-xs text-[#5c6170] m-0">
@@ -164,7 +223,9 @@ export function AssetDetailPage({
                 alt={asset.title}
                 draggable={false}
                 referrerPolicy="no-referrer"
-                className="w-full block"
+                onClick={() => setZoom(true)}
+                title="Bada dekhein"
+                className="w-full block cursor-zoom-in"
                 style={{ aspectRatio: `${asset.w}/${asset.h}` }}
               />
             </div>
@@ -174,6 +235,8 @@ export function AssetDetailPage({
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${asset.lic === 'editorial' ? 'bg-[#f2e8fd] text-[#8a2be2]' : 'bg-[#e6f4ea] text-[#11602d]'}`}>
                   {asset.lic === 'editorial' ? tr(lang, 'ed') : tr(lang, 'rf')}
                 </span>
+                {isAi && <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-[#ede9fe] text-[#6d28d9]">AI Generated</span>}
+                <span className="flex-1" />
                 <button
                   type="button"
                   onClick={() => onSpeak(`${asset.title}. ${tr(lang, 'by')} ${asset.contributor}. ${asset.desc || asset.caption || ''}`)}
@@ -189,7 +252,21 @@ export function AssetDetailPage({
                 <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">{tr(lang, 'downloads')}</div><b className="text-[#111] text-[13px]">{dlCount(asset)}</b></div>
               </div>
             </div>
-            {asset.desc && <p className="text-sm mt-2">{asset.desc}</p>}
+            <div className="mt-3 rounded-xl border border-[#d9dbe1] bg-white p-4">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <b className="text-sm text-[#011f43]">Description</b>
+                {(asset.desc || asset.caption) && (
+                  <button type="button" onClick={() => onSpeak(asset.desc || asset.caption || '')} className="px-2 py-0.5 rounded-md border border-[#d9dbe1] bg-white text-[#011f43] text-[11px] font-semibold cursor-pointer">🔊</button>
+                )}
+              </div>
+              <p className="text-sm m-0 leading-relaxed text-[#2b3242] whitespace-pre-line">{asset.desc || asset.caption || 'Is photo ka vivaran jald joda jaayega.'}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5 text-[11.5px] text-[#5c6170]">
+                <span>📂 {asset.cat}</span>
+                {asset.place && <span>📍 {asset.place}</span>}
+                <span>📅 {asset.evdate || asset.date}</span>
+                {isAi && <span className="text-[#6d28d9] font-semibold">🤖 AI Generated</span>}
+              </div>
+            </div>
             {asset.lic === 'editorial' ? (
               <div className="bg-[#f2e8fd] border border-[#dfc8fa] rounded-lg p-3.5 text-sm mt-3">
                 <b>📰 {tr(lang, 'edonly')}.</b> {asset.caption}
@@ -211,6 +288,14 @@ export function AssetDetailPage({
                   {k}
                 </a>
               ))}
+            </div>
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-[#011f43] mr-1">Share:</span>
+              <button type="button" onClick={() => share('wa')} className="px-3 py-1.5 rounded-full bg-[#25d366] text-white text-xs font-bold border-0 cursor-pointer">WhatsApp</button>
+              <button type="button" onClick={() => share('fb')} className="px-3 py-1.5 rounded-full bg-[#1877f2] text-white text-xs font-bold border-0 cursor-pointer">Facebook</button>
+              <button type="button" onClick={() => share('x')} className="px-3 py-1.5 rounded-full bg-[#111] text-white text-xs font-bold border-0 cursor-pointer">X</button>
+              <button type="button" onClick={() => share('copy')} className="px-3 py-1.5 rounded-full border border-[#d9dbe1] bg-white text-[#011f43] text-xs font-bold cursor-pointer">🔗 Copy link</button>
+              <DonateButton className="ml-auto" label="Donate" />
             </div>
           </div>
 
@@ -314,6 +399,17 @@ export function AssetDetailPage({
                 </p>
               )}
             </div>
+            <details className="mt-3 bg-[#f8faff] border border-[#d9dbe1] rounded-xl p-4 text-sm" open>
+              <summary className="font-bold text-[#011f43] cursor-pointer">⬇ Download kaise hoga?</summary>
+              <ol className="mt-2 mb-0 pl-5 space-y-1 text-[13px] text-[#33405c]">
+                <li>License aur size chuniye, <b>Buy Now</b> dabaiye.</li>
+                <li>Naam, email aur upyog bhariye, UPI QR se payment kariye.</li>
+                <li>UPI app ka 12 ankon ka <b>UTR</b> number daal kar order bhejiye.</li>
+                <li>Admin payment milte hi order <b>Paid</b> karega (aam taur par kuch ghante).</li>
+                <li><b>My Account → Downloads</b> me ⬇ dabakar bina watermark ki photo aur License Certificate paiye.</li>
+              </ol>
+              <p className="text-[11.5px] text-[#5c6170] mt-2 mb-0">Sirf dekhne ya design try karne ke liye <b>Free preview</b> (watermark wali) turant download ho jaati hai.</p>
+            </details>
           </div>
         </div>
       </section>
