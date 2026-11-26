@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Upload, Save } from 'lucide-react';
 import { thumbUrl } from '../data/defaults';
+import ComboBox from './ComboBox';
+import { CATEGORY_OPTIONS, TITLE_OPTIONS } from '../data/pickLists';
 import type { AdminEditTarget, Asset, LicenseOptionKey, SiteConfig, SizeKey, User } from '../types';
 
 interface AdminEditModalProps {
@@ -117,7 +119,8 @@ export function AdminEditModal({
     }
   }
 
-  const allCats = Array.from(new Set([...assets.map((a) => a.cat), ...cfg.settings.customCategories]));
+  const allCats = Array.from(new Set([...CATEGORY_OPTIONS, ...assets.map((a) => a.cat), ...cfg.settings.customCategories]));
+  const titleOpts = Array.from(new Set([...TITLE_OPTIONS, ...assets.map((a) => (a.title || '').replace(/\s*#\d+$/, '').trim())])).filter(Boolean);
 
   return (
     <div
@@ -1390,14 +1393,12 @@ export function AdminEditModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold block mb-1">Photo Title</label>
-                  <input required value={photoTitle} onChange={(e) => setPhotoTitle(e.target.value)} className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg text-sm" />
+                  <ComboBox required maxLength={90} value={photoTitle} onChange={setPhotoTitle} options={titleOpts} placeholder="List se chuniye ya likhiye" />
+                  <p className="text-[11px] text-[#5c6170] mt-1 mb-0">Save par serial apne aap judega, jaise {(photoTitle.trim() || 'Santal Huru Get').replace(/\s*#\d+$/, '')}#01</p>
                 </div>
                 <div>
                   <label className="text-xs font-bold block mb-1">Category</label>
-                  <input required list="adm-cats" value={photoCat} onChange={(e) => setPhotoCat(e.target.value)} className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg text-sm" />
-                  <datalist id="adm-cats">
-                    {allCats.map((c) => <option key={c} value={c} />)}
-                  </datalist>
+                  <ComboBox required value={photoCat} onChange={setPhotoCat} options={allCats} placeholder="Category" />
                 </div>
               </div>
               <div>
