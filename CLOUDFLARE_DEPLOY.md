@@ -81,3 +81,20 @@ Sends OTP from your own Gmail. Free plan: 200 emails/month. The OTP is sent from
 5. Cloudflare → Workers & Pages → santalstock → Settings → Variables and Secrets → Production → add (Type: Secret):
    `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY`
 6. Push / Retry deployment. If RESEND_API_KEY is also set, Resend is tried first.
+
+## Go-live checklist (v19)
+Open `/api/email-status` on the live site. Everything below should be `true`, except `ALLOW_SCREEN_OTP` and `demoAdminActive` which should be `false`.
+
+| Setting | Type | Needed for |
+|---|---|---|
+| `SANTALSTOCK_KV` | KV binding | users, orders, messages |
+| `SANTALSTOCK_R2` | R2 binding | photos, internet check |
+| `EMAILJS_SERVICE_ID` | Secret | OTP email |
+| `EMAILJS_TEMPLATE_ID` | Secret | OTP email |
+| `EMAILJS_PUBLIC_KEY` | Secret | OTP email |
+| `EMAILJS_PRIVATE_KEY` | Secret | OTP email |
+| `EMAILJS_ALERT_TEMPLATE_ID` | Secret (optional) | feedback alert mail |
+| `SERPAPI_KEY` | Secret (optional) | auto internet photo check |
+| `NODE_VERSION` = `22` | Variable | build |
+
+After adding or changing any of these: Deployments -> Retry deployment.

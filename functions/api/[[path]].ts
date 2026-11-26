@@ -41,6 +41,10 @@ interface CfEnv {
   EMAILJS_TEMPLATE_ID?: string;
   EMAILJS_PUBLIC_KEY?: string;
   EMAILJS_PRIVATE_KEY?: string;
+  /** Optional 2nd EmailJS template for new feedback / message alerts to the owner. */
+  EMAILJS_ALERT_TEMPLATE_ID?: string;
+  /** Where feedback alerts go (default sunitasoran98@gmail.com). */
+  ADMIN_ALERT_EMAIL?: string;
   EMAIL_FROM?: string;
   GITHUB_TOKEN?: string;
   GITHUB_OWNER?: string;
@@ -373,6 +377,44 @@ async function sendViaEmailJs(env: CfEnv, to: string, subject: string, code: str
 }
 let LAST_EMAIL_ERROR = '';
 
+/** Emails the owner when a new feedback / suggestion / message arrives. Never blocks the user. */
+async function sendFeedbackAlert(env: CfEnv, m: ContactMessage): Promise<void> {
+  const to = v(env.ADMIN_ALERT_EMAIL) || 'sunitasoran98@gmail.com';
+  const subject = `SantalStock: new ${m.kind || 'message'} from ${m.name} (${m.id})`;
+  const stars = m.rating ? '★'.repeat(m.rating) + '☆'.repeat(5 - m.rating) : '-';
+  const text = `Type: ${m.kind || 'Contact message'}\nTicket: ${m.id}\nName: ${m.name}\nEmail: ${m.email}\nMobile: ${m.mobile ? '+91 ' + m.mobile : '-'}\nStars: ${stars}\nPage: ${m.page || '-'}\nTime: ${new Date(m.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}\n\n${m.message}\n\nReply: just reply to this email, or open Admin → Messages & Feedback.`;
+  try {
+    if (v(env.EMAILJS_ALERT_TEMPLATE_ID) && v(env.EMAILJS_SERVICE_ID) && v(env.EMAILJS_PUBLIC_KEY) && v(env.EMAILJS_PRIVATE_KEY)) {
+      const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'SantalStock/1.0 (+https://santalstock.pages.dev)', Origin: 'https://santalstock.pages.dev' },
+        body: JSON.stringify({
+          service_id: v(env.EMAILJS_SERVICE_ID),
+          template_id: v(env.EMAILJS_ALERT_TEMPLATE_ID),
+          user_id: v(env.EMAILJS_PUBLIC_KEY),
+          accessToken: v(env.EMAILJS_PRIVATE_KEY),
+          template_params: {
+            to_email: to, subject, reply_to: m.email, kind: m.kind || 'Contact message', ticket: m.id,
+            name: m.name, email: m.email, mobile: m.mobile ? '+91 ' + m.mobile : '-', stars, page: m.page || '-',
+            message: m.message, details: text,
+          },
+        }),
+      });
+      if (!res.ok) LAST_EMAIL_ERROR = `Alert EmailJS ${res.status}: ${(await res.text()).slice(0, 200)}`;
+      return;
+    }
+    if (v(env.RESEND_API_KEY)) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${v(env.RESEND_API_KEY)}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: env.EMAIL_FROM || 'SantalStock <onboarding@resend.dev>', to: [to], reply_to: m.email, subject, text }),
+      });
+    }
+  } catch (e) {
+    LAST_EMAIL_ERROR = `Alert error: ${(e as Error)?.message || e}`;
+  }
+}
+
 async function sendVerificationEmail(
   env: CfEnv,
   to: string,
@@ -683,13 +725,20 @@ export async function onRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v17',
+      deployHasCode: 'v19',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
       EMAILJS_PUBLIC_KEY: !!v(env.EMAILJS_PUBLIC_KEY),
       EMAILJS_PRIVATE_KEY: !!v(env.EMAILJS_PRIVATE_KEY),
+      EMAILJS_ALERT_TEMPLATE_ID: !!v(env.EMAILJS_ALERT_TEMPLATE_ID),
+      ADMIN_ALERT_EMAIL: v(env.ADMIN_ALERT_EMAIL) || 'sunitasoran98@gmail.com (default)',
       RESEND_API_KEY: !!v(env.RESEND_API_KEY),
       ALLOW_SCREEN_OTP: env.ALLOW_SCREEN_OTP === '1',
+      SERPAPI_KEY: !!v(env.SERPAPI_KEY),
+      SANTALSTOCK_KV: !!env.SANTALSTOCK_KV,
+      SANTALSTOCK_R2: !!env.SANTALSTOCK_R2,
+      ownerAdminSet: db.users.some((x) => x.role === 'admin' && x.email === 'sunitasoran98@gmail.com'),
+      demoAdminActive: db.users.some((x) => x.email === DEMO_ADMIN_EMAIL),
       emailReady: emailConfigured(env),
       lastError: LAST_EMAIL_ERROR || null,
     });
@@ -1428,8 +1477,12 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const hourAgo = Date.now() - 3600_000;
     if (db.messages.filter((m) => m.email === email && Date.parse(m.date) > hourAgo).length >= 5) return json({ error: 'Too many messages. Please try again after an hour.' }, 400);
     const id = (kind ? 'FB-' : 'MSG-') + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
-    db.messages.unshift({ id, name, email, message, date: new Date().toISOString(), mobile: mobile || undefined, kind: kind || undefined, rating, page });
+    const msg: ContactMessage = { id, name, email, message, date: new Date().toISOString(), mobile: mobile || undefined, kind: kind || undefined, rating, page };
+    db.messages.unshift(msg);
     await saveDb(env, db);
+    const alert = sendFeedbackAlert(env, msg);
+    if (typeof context.waitUntil === 'function') context.waitUntil(alert);
+    else await alert;
     return json({ ok: true, id });
   }
 
