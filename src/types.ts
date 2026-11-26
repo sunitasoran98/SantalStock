@@ -23,6 +23,8 @@ export interface User {
 
 export interface Asset {
   id: string;
+  /** Running photo number (#01, #02 …) given on upload. */
+  serial?: number;
   pid?: string;
   w: number;
   h: number;

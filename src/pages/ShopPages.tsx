@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ComboBox from '../components/ComboBox';
+import { USE_OPTIONS } from '../data/pickLists';
 import { Pencil, Trash2, Printer, Download } from 'lucide-react';
 import { DEFAULT_SITE_CONFIG, fullAssetUrl, thumbUrl, tr } from '../data/defaults';
 import { api } from '../lib/api';
@@ -167,19 +169,26 @@ export function AssetDetailPage({
               />
             </div>
             <h1 className="dm text-3xl text-[#011f43] mt-4 mb-1">{asset.title}</h1>
-            <p className="text-sm text-[#5c6170] flex items-center flex-wrap gap-2">
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${asset.lic === 'editorial' ? 'bg-[#f2e8fd] text-[#8a2be2]' : 'bg-[#e6f4ea] text-[#11602d]'}`}>
-                {asset.lic === 'editorial' ? tr(lang, 'ed') : tr(lang, 'rf')}
-              </span>
-              <span>{tr(lang, 'by')} <b className="text-[#111]">{asset.contributor}</b> · ID {asset.id} · {asset.w}×{asset.h}px · {dlCount(asset)} {tr(lang, 'downloads')}</span>
-              <button
-                type="button"
-                onClick={() => onSpeak(`${asset.title}. ${tr(lang, 'by')} ${asset.contributor}. ${asset.desc || asset.caption || ''}`)}
-                className="px-2.5 py-1 rounded-md border border-[#d9dbe1] bg-white text-[#011f43] text-xs font-semibold cursor-pointer"
-              >
-                🔊 {tr(lang, 'listen')}
-              </button>
-            </p>
+            <div className="mt-2 rounded-xl border border-[#d9dbe1] bg-[#f8faff] p-3 text-sm text-[#5c6170]">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${asset.lic === 'editorial' ? 'bg-[#f2e8fd] text-[#8a2be2]' : 'bg-[#e6f4ea] text-[#11602d]'}`}>
+                  {asset.lic === 'editorial' ? tr(lang, 'ed') : tr(lang, 'rf')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onSpeak(`${asset.title}. ${tr(lang, 'by')} ${asset.contributor}. ${asset.desc || asset.caption || ''}`)}
+                  className="px-2.5 py-1 rounded-md border border-[#d9dbe1] bg-white text-[#011f43] text-xs font-semibold cursor-pointer"
+                >
+                  🔊 {tr(lang, 'listen')}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5">
+                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">{tr(lang, 'by')}</div><b className="text-[#111] text-[13px] break-words">{asset.contributor}</b></div>
+                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">ID</div><b className="text-[#111] text-[13px]">{asset.id}</b></div>
+                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">Size</div><b className="text-[#111] text-[13px]">{asset.w}×{asset.h}px</b></div>
+                <div className="bg-white border border-[#e3e6ee] rounded-lg px-2.5 py-1.5"><div className="text-[10.5px] uppercase tracking-wide">{tr(lang, 'downloads')}</div><b className="text-[#111] text-[13px]">{dlCount(asset)}</b></div>
+              </div>
+            </div>
             {asset.desc && <p className="text-sm mt-2">{asset.desc}</p>}
             {asset.lic === 'editorial' ? (
               <div className="bg-[#f2e8fd] border border-[#dfc8fa] rounded-lg p-3.5 text-sm mt-3">
@@ -538,7 +547,7 @@ export function CartCheckoutPage({
           {!isCreditPurchase && (
             <>
               <div><label className="text-xs font-bold block mb-1">{tr(lang, 'licensee')}</label><input required value={licensee} onChange={(e) => setLicensee(e.target.value)} className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg text-sm" /></div>
-              <div><label className="text-xs font-bold block mb-1">{tr(lang, 'use')}</label><input required value={intendedUse} onChange={(e) => setIntendedUse(e.target.value)} placeholder="e.g. Website banner, magazine article" className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg text-sm" /></div>
+              <div><label className="text-xs font-bold block mb-1">{tr(lang, 'use')}</label><ComboBox required value={intendedUse} onChange={setIntendedUse} options={USE_OPTIONS} placeholder="List se chuniye ya likhiye" /></div>
             </>
           )}
 

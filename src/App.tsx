@@ -148,6 +148,7 @@ export default function App() {
     try {
       const data = await api<{
         user: User | null;
+        tokenStatus?: 'none' | 'ok' | 'pending' | 'invalid';
         siteConfig: SiteConfig;
         assets: Asset[];
         orders: Order[];
@@ -159,8 +160,11 @@ export default function App() {
       }>('/api/state');
       setSiteConfig(data.siteConfig);
       setAssets(data.assets);
-      setUser(data.user);
-      if (!data.user && getToken()) setToken(''); // server says this login is no longer valid
+      // Log out only when the server clearly says the token is invalid (logout, password reset,
+      // deleted account). A busy server, offline mode or a KV sync delay keeps the admin logged in.
+      const keepLogin = !data.user && !!getToken() && data.tokenStatus !== 'invalid';
+      if (!keepLogin) setUser(data.user);
+      if (!data.user && getToken() && data.tokenStatus === 'invalid') setToken('');
       setOrders(data.orders || []);
       setPayouts(data.payouts || []);
       setUsers(data.users || []);
@@ -172,7 +176,7 @@ export default function App() {
         setProfCompany(data.user.company || '');
         setProfGstin(data.user.gstin || '');
         setProfRole(data.user.role === 'contributor' ? 'contributor' : 'buyer');
-      } else {
+      } else if (!keepLogin) {
         setAdminMode(false);
       }
     } catch {

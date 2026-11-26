@@ -255,35 +255,60 @@ async function createInitialDb(env: CfEnv): Promise<Database> {
   };
 }
 
+// v21: safety for the single-record database.
+// - A KV read error never creates (or saves) an empty database over the real one.
+// - A brand-new database is written only if KV really has nothing.
+// - Every save re-reads KV and keeps users/photos/orders/messages that another request added
+//   meanwhile, so one stale request cannot erase the owner admin or new uploads.
+const FRESH_DB = new WeakSet<object>();
+const DELETED_IDS = new WeakMap<object, Set<string>>();
+function markDeleted(db: Database, kind: string, id: string): void {
+  let set = DELETED_IDS.get(db);
+  if (!set) DELETED_IDS.set(db, (set = new Set()));
+  set.add(`${kind}:${id}`);
+}
+class DbUnavailableError extends Error {}
+
+function normalizeDb(parsed: Partial<Database>, init: Database, env: CfEnv): Database {
+  return {
+    users: parsed.users?.length ? parsed.users : init.users,
+    sessions: parsed.sessions || [],
+    assets: parsed.assets || [],
+    deletedSeed: parsed.deletedSeed || [],
+    orders: parsed.orders || [],
+    payouts: parsed.payouts || [],
+    lightbox: parsed.lightbox || {},
+    newsletter: parsed.newsletter || [],
+    messages: parsed.messages || [],
+    siteConfig: deepMergeConfig(parsed.siteConfig),
+    githubSync: { ...defaultGitHubSync(env), ...(parsed.githubSync || {}) },
+    sessionSecret: parsed.sessionSecret || init.sessionSecret,
+    revoked: parsed.revoked || [],
+  };
+}
+
+async function readStoredDb(env: CfEnv): Promise<Partial<Database> | null> {
+  let raw: string | null;
+  try {
+    raw = await env.SANTALSTOCK_KV!.get(DB_KV_KEY);
+  } catch (e) {
+    throw new DbUnavailableError('KV read failed: ' + (e as Error).message);
+  }
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Partial<Database>;
+  } catch {
+    throw new DbUnavailableError('Database record could not be read.');
+  }
+}
+
 async function loadDb(env: CfEnv): Promise<Database> {
   if (env.SANTALSTOCK_KV) {
-    try {
-      const raw = await env.SANTALSTOCK_KV.get(DB_KV_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<Database>;
-        const init = await createInitialDb(env);
-        return {
-          users: parsed.users?.length ? parsed.users : init.users,
-          sessions: parsed.sessions || [],
-          assets: parsed.assets || [],
-          deletedSeed: parsed.deletedSeed || [],
-          orders: parsed.orders || [],
-          payouts: parsed.payouts || [],
-          lightbox: parsed.lightbox || {},
-          newsletter: parsed.newsletter || [],
-          messages: parsed.messages || [],
-          siteConfig: deepMergeConfig(parsed.siteConfig),
-          githubSync: { ...defaultGitHubSync(env), ...(parsed.githubSync || {}) },
-          sessionSecret: parsed.sessionSecret || init.sessionSecret,
-          revoked: parsed.revoked || [],
-        };
-      }
-    } catch {
-      // fall through to initialize fresh DB
-    }
-    const fresh = await createInitialDb(env);
-    await env.SANTALSTOCK_KV.put(DB_KV_KEY, JSON.stringify(fresh));
-    return fresh;
+    const parsed = await readStoredDb(env);
+    const init = await createInitialDb(env);
+    if (parsed) return normalizeDb(parsed, init, env);
+    FRESH_DB.add(init); // written only on the first real save, after a re-check
+    return init;
   }
 
   if (!MEMORY_DB) {
@@ -292,12 +317,48 @@ async function loadDb(env: CfEnv): Promise<Database> {
   return MEMORY_DB;
 }
 
+function mergeById<T>(ours: T[], theirs: T[] | undefined, key: (x: T) => string, kind: string, deleted: Set<string>): T[] {
+  if (!theirs?.length) return ours;
+  const have = new Set(ours.map(key));
+  const extra = theirs.filter((x) => {
+    const k = key(x);
+    return k && !have.has(k) && !deleted.has(`${kind}:${k}`);
+  });
+  return extra.length ? [...ours, ...extra] : ours;
+}
+
 async function saveDb(env: CfEnv, db: Database): Promise<void> {
-  if (env.SANTALSTOCK_KV) {
-    await env.SANTALSTOCK_KV.put(DB_KV_KEY, JSON.stringify(db));
-  } else {
+  if (!env.SANTALSTOCK_KV) {
     MEMORY_DB = db;
+    return;
   }
+  const stored = await readStoredDb(env);
+  if (stored) {
+    if (FRESH_DB.has(db)) {
+      // KV said "empty" earlier but a real database exists: never overwrite it.
+      throw new DbUnavailableError('Database was not ready. Please try again.');
+    }
+    const del = DELETED_IDS.get(db) || new Set<string>();
+    db.users = mergeById(db.users, stored.users, (u) => u.email, 'user', del);
+    db.assets = mergeById(db.assets, stored.assets, (a) => a.id, 'asset', del);
+    db.orders = mergeById(db.orders, stored.orders, (o) => o.id, 'order', del);
+    db.payouts = mergeById(db.payouts, stored.payouts, (p) => p.id, 'payout', del);
+    db.messages = mergeById(db.messages, stored.messages, (m) => m.id, 'message', del);
+    if (stored.revoked?.length) db.revoked = [...new Set([...(db.revoked || []), ...stored.revoked])].slice(-2000);
+    if (stored.sessionSecret) db.sessionSecret = stored.sessionSecret;
+  }
+  const body = JSON.stringify(db);
+  // KV allows 1 write per second to the same key; retry instead of crashing (crash = logout before v21).
+  for (let i = 0; ; i++) {
+    try {
+      await env.SANTALSTOCK_KV.put(DB_KV_KEY, body);
+      break;
+    } catch (e) {
+      if (i >= 3) throw new DbUnavailableError('KV write failed: ' + (e as Error).message);
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+  }
+  FRESH_DB.delete(db);
 }
 
 async function maybeAutoSyncGitHub(env: CfEnv, db: Database, reason: string): Promise<void> {
@@ -481,10 +542,26 @@ function unb64url(str: string): string {
   const pad = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
   return decodeURIComponent(escape(atob(pad)));
 }
-function sessionSecretOf(env: CfEnv, db: Database): string {
+// v21: login tokens are signed with a secret that never changes between requests:
+// SESSION_SECRET if set, else one derived from the EmailJS private key (already a Cloudflare secret).
+// Older tokens signed with the database secret are still accepted.
+async function stableSecret(env: CfEnv): Promise<string | null> {
   if (env.SESSION_SECRET) return env.SESSION_SECRET;
+  const base = (env.EMAILJS_PRIVATE_KEY || '').trim();
+  if (!base) return null;
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('santalstock-session-v1|' + base));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function sessionSecretOf(env: CfEnv, db: Database): Promise<string> {
+  const st = await stableSecret(env);
+  if (st) return st;
   if (!db.sessionSecret) db.sessionSecret = randomHex(32);
   return db.sessionSecret;
+}
+type TokenStatus = 'none' | 'ok' | 'pending' | 'invalid';
+const TOKEN_STATUS = new WeakMap<Request, TokenStatus>();
+function tokenStatusOf(request: Request): TokenStatus {
+  return TOKEN_STATUS.get(request) || (extractToken(request) ? 'invalid' : 'none');
 }
 async function hmacHex(secret: string, data: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -495,31 +572,42 @@ async function makeSignedToken(env: CfEnv, db: Database, email: string): Promise
   const e = b64url(email);
   const iat = String(Date.now());
   const rand = randomHex(12);
-  const sig = await hmacHex(sessionSecretOf(env, db), `${e}.${iat}.${rand}`);
+  const sig = await hmacHex(await sessionSecretOf(env, db), `${e}.${iat}.${rand}`);
   return `v2.${e}.${iat}.${rand}.${sig}`;
 }
 /** Verifies a signed token once per request (async), so getAuthUser can stay sync. */
 async function preVerifyToken(request: Request, env: CfEnv, db: Database): Promise<void> {
   const token = extractToken(request);
-  if (!token.startsWith('v2.')) return;
+  if (!token) return void TOKEN_STATUS.set(request, 'none');
+  if (!token.startsWith('v2.')) {
+    const ok = db.sessions.some((x) => x.token === token);
+    return void TOKEN_STATUS.set(request, ok ? 'ok' : 'invalid');
+  }
+  const bad = () => void TOKEN_STATUS.set(request, 'invalid');
   const parts = token.split('.');
-  if (parts.length !== 5) return;
+  if (parts.length !== 5) return bad();
   const [, e, iat, rand, sig] = parts;
-  if (db.revoked?.includes(sig)) return;
-  const want = await hmacHex(sessionSecretOf(env, db), `${e}.${iat}.${rand}`);
-  if (want !== sig) return;
+  if (db.revoked?.includes(sig)) return bad();
+  const data = `${e}.${iat}.${rand}`;
+  const secrets = [await stableSecret(env), db.sessionSecret].filter(Boolean) as string[];
+  let match = false;
+  for (const sec of secrets) if ((await hmacHex(sec, data)) === sig) match = true;
+  if (!match) return bad();
   let email = '';
   try {
     email = unb64url(e);
   } catch {
-    return;
+    return bad();
   }
   const u = db.users.find((x) => x.email === email);
-  if (!u) return;
+  // Signature is genuine but this copy of the database does not have the user yet
+  // (Cloudflare KV can take up to a minute to sync): keep the login, do not log out.
+  if (!u) return void TOKEN_STATUS.set(request, 'pending');
   const issued = Number(iat);
-  if (u.tokenEpoch && issued < u.tokenEpoch) return;
-  if (u.role !== 'admin' && Date.now() - issued > USER_TOKEN_DAYS * 86400_000) return;
+  if (u.tokenEpoch && issued < u.tokenEpoch) return bad();
+  if (u.role !== 'admin' && Date.now() - issued > USER_TOKEN_DAYS * 86400_000) return bad();
   VERIFIED_AUTH.set(request, email);
+  TOKEN_STATUS.set(request, 'ok');
 }
 
 function getAuthUser(request: Request, db: Database): StoredUser | null {
@@ -585,6 +673,22 @@ async function createSession(env: CfEnv, db: Database, email: string): Promise<{
   if (db.revoked && db.revoked.length > 2000) db.revoked = db.revoked.slice(-2000);
   await saveDb(env, db);
   return { token, cookie: sessionCookie(token) };
+}
+
+/* ================= PHOTO SERIAL (v22) ================= */
+function nextPhotoSerial(db: Database): number {
+  let max = 0;
+  for (const a of db.assets) {
+    if (a.serial && a.serial > max) max = a.serial;
+    const m = /^SSP(\d+)/.exec(a.id);
+    if (m && Number(m[1]) > max) max = Number(m[1]);
+  }
+  return max + 1;
+}
+/** "Santal Huru Get" + 1 -> "Santal Huru Get#01" (any old #NN at the end is replaced). */
+function withSerial(title: string, serial: number): string {
+  const base = title.replace(/\s*#\d+\s*$/, '').trim().slice(0, 110) || 'Untitled Photo';
+  return `${base}#${String(serial).padStart(2, '0')}`;
 }
 
 /* ================= IMAGE STORAGE (R2 or KV) ================= */
@@ -715,6 +819,15 @@ async function runWebCheck(env: CfEnv, origin: string, id: string): Promise<WebC
 }
 
 export async function onRequest(context: CfContext): Promise<Response> {
+  try {
+    return await handleRequest(context);
+  } catch (e) {
+    const msg = e instanceof DbUnavailableError ? 'Server busy, please try again in a moment.' : 'Server error, please try again.';
+    return json({ error: msg, retry: true }, 503, { 'Retry-After': '2' });
+  }
+}
+
+async function handleRequest(context: CfContext): Promise<Response> {
   const { request, env } = context;
   const method = request.method.toUpperCase();
   const url = new URL(request.url);
@@ -754,7 +867,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v20',
+      deployHasCode: 'v22',
       photoStore: env.SANTALSTOCK_R2 ? 'R2' : env.SANTALSTOCK_KV ? 'KV (one key per photo)' : 'none',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
@@ -777,6 +890,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     const u = getAuthUser(request, db);
     return json({
       user: u ? sanitizeUser(u) : null,
+      tokenStatus: tokenStatusOf(request),
       smtpConfigured: Boolean(env.RESEND_API_KEY),
       cloudflareKv: Boolean(env.SANTALSTOCK_KV),
       cloudflareR2: Boolean(env.SANTALSTOCK_R2),
@@ -872,6 +986,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     if (OWNER_ADMIN_EMAILS.has(u.email)) u.role = 'admin';
     if (u.role === 'admin' && u.email !== DEMO_ADMIN_EMAIL) {
       // Real owner admin is ready: switch off the demo admin login (admin@santalstock.in / admin123).
+      markDeleted(db, 'user', DEMO_ADMIN_EMAIL);
       db.users = db.users.filter((x) => x.email !== DEMO_ADMIN_EMAIL);
       db.sessions = db.sessions.filter((x) => x.email !== DEMO_ADMIN_EMAIL);
     }
@@ -1060,6 +1175,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
 
     return json({
       user: u ? sanitizeUser(u) : null,
+      tokenStatus: tokenStatusOf(request),
       siteConfig: db.siteConfig,
       assets,
       orders,
@@ -1117,9 +1233,11 @@ export async function onRequest(context: CfContext): Promise<Response> {
     if (exactHit && !(u.role === 'admin' && b.force === true)) {
       return json({ error: `Ye photo pehle se SantalStock par hai (${exactHit.id}). Duplicate upload allowed nahi hai.`, duplicate: exactHit }, 409);
     }
-    const arr = new Uint32Array(1);
-    crypto.getRandomValues(arr);
-    const id = 'SS' + (5000 + db.assets.length + (100 + (arr[0] % 99899)));
+    // v22: running serial (#01, #02 …) and a matching unique ID (SSP01, SSP02 …).
+    const serial = nextPhotoSerial(db);
+    const pad = String(serial).padStart(2, '0');
+    let id = 'SSP' + pad;
+    for (let n = 2; db.assets.some((a) => a.id === id) || SEED_ASSETS.some((a) => a.id === id); n++) id = `SSP${pad}-${n}`;
     let owner = u.email;
     let contributor = u.name;
     if (u.role === 'admin' && typeof b.assignOwner === 'string' && b.assignOwner) {
@@ -1131,7 +1249,8 @@ export async function onRequest(context: CfContext): Promise<Response> {
     }
     const asset: Asset = {
       id,
-      title: String(b.title || 'Untitled Photo').trim().slice(0, 120),
+      title: withSerial(String(b.title || 'Untitled Photo'), serial),
+      serial,
       desc: String(b.desc || '').trim(),
       kw: Array.isArray(b.kw) ? b.kw.map((k) => String(k).trim().toLowerCase()).filter(Boolean) : [],
       cat: String(b.cat || 'Culture').trim(),
@@ -1180,7 +1299,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       rec = { ...seed };
       db.assets.unshift(rec);
     }
-    if (typeof b.title === 'string') rec.title = b.title.trim();
+    if (typeof b.title === 'string') rec.title = rec.serial ? withSerial(b.title, rec.serial) : b.title.trim();
     if (typeof b.desc === 'string') rec.desc = b.desc.trim();
     if (typeof b.contributor === 'string') rec.contributor = b.contributor.trim();
     if (typeof b.owner === 'string') rec.owner = b.owner;
@@ -1222,6 +1341,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
       return json({ error: 'Not allowed to delete this photo.' }, 403);
     }
     if (isSeed && !db.deletedSeed.includes(id)) db.deletedSeed.push(id);
+    markDeleted(db, 'asset', id);
     db.assets = db.assets.filter((x) => x.id !== id);
     await deleteImages(env, id);
     await saveDb(env, db);

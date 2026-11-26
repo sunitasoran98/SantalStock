@@ -50,6 +50,9 @@ export async function api<T = Record<string, unknown>>(
     // When hosted as pure static files (e.g. Cloudflare Pages Direct Upload without Functions),
     // /api/* returns HTML (index.html) or non-JSON -> smoothly switch to static fallback engine
     if (!contentType.includes('application/json')) {
+      // A Cloudflare error page (5xx) is a temporary hiccup, not a static-only host:
+      // never switch to offline mode (that used to log the admin out).
+      if (res.status >= 500 || res.status === 429) throw new Error(`Server busy (${res.status}). Please try again.`);
       useStaticFallback = true;
       return handleStaticFallback<T>(url, options, token);
     }
@@ -60,10 +63,9 @@ export async function api<T = Record<string, unknown>>(
     }
     return data as T;
   } catch (err) {
-    if (err instanceof TypeError) {
-      useStaticFallback = true;
-      return handleStaticFallback<T>(url, options, token);
-    }
+    // Network blip (offline / flaky mobile data): keep the current screen and login as they are.
+    // (Static-only hosting is detected above by the HTML reply, not by network errors.)
+    if (err instanceof TypeError) throw new Error('Network problem. Please check your internet and try again.');
     throw err;
   }
 }

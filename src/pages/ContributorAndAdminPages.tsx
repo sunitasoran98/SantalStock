@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ComboBox from '../components/ComboBox';
+import { CATEGORY_OPTIONS, TITLE_OPTIONS } from '../data/pickLists';
 import { Pencil, Trash2, Plus, Download, RotateCcw, Upload, GitBranch } from 'lucide-react';
 import { GitHubSourcePanel } from '../components/GitHubSourcePanel';
 import { thumbUrl, tr } from '../data/defaults';
@@ -140,7 +142,8 @@ export function ContributorPage({
   const earned = sales.reduce((n, s) => n + s.royalty, 0);
   const paid = payouts.filter((p) => p.user === user.email).reduce((n, p) => n + p.amt, 0);
   const bal = earned - paid;
-  const allCats = Array.from(new Set([...assets.map((a) => a.cat), ...siteConfig.settings.customCategories]));
+  const allCats = Array.from(new Set([...CATEGORY_OPTIONS, ...assets.map((a) => a.cat), ...siteConfig.settings.customCategories]));
+  const titleOpts = Array.from(new Set([...TITLE_OPTIONS, ...assets.map((a) => (a.title || '').replace(/\s*#\d+$/, '').trim())])).filter(Boolean);
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -272,7 +275,8 @@ export function ContributorPage({
 
             <div>
               <label className="block text-sm font-semibold mb-1">Image Title</label>
-              <input required maxLength={90} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Photo title" className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg bg-white text-sm" />
+              <ComboBox required maxLength={90} value={title} onChange={setTitle} options={titleOpts} placeholder="Photo title (list se chuniye ya likhiye)" />
+              <p className="text-[11px] text-[#5c6170] mt-1 mb-0">Save par title ke saath serial apne aap judega, jaise {title.trim() || 'Santal Huru Get'}#01. Photo ID SSP se banegi.</p>
             </div>
             <div>
               <label className="block text-sm font-semibold mb-1">Image Description</label>
@@ -284,8 +288,7 @@ export function ContributorPage({
             </div>
             <div>
               <label className="block text-sm font-semibold mb-1">Category</label>
-              <input required list="up-cats" value={cat} onChange={(e) => setCat(e.target.value)} className="w-full px-3 py-2 border border-[#d9dbe1] rounded-lg bg-white text-sm" />
-              <datalist id="up-cats">{allCats.map((c) => <option key={c} value={c} />)}</datalist>
+              <ComboBox required value={cat} onChange={setCat} options={allCats} placeholder="Category" />
             </div>
           </div>
 
