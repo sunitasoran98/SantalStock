@@ -109,7 +109,7 @@ export function AdminDupPanel({ asset, assets, onRefresh, toast }: { asset: Asse
             <a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded border border-[#d9dbe1] bg-white text-[11px] font-bold text-[#011f43]">{l.name}</a>
           ))
         ) : (
-          <span className="text-[11px] text-[#5c6170]">Reverse search ke liye R2 chalu karein (photo ka public link chahiye).</span>
+          <span className="text-[11px] text-[#5c6170]">Reverse search ke liye KV ya R2 chalu karein (photo ka public link chahiye).</span>
         )}
         {pub && (
           <button type="button" disabled={busy} onClick={runWeb} className="px-2.5 py-1 rounded bg-[#011f43] text-white text-[11px] font-bold cursor-pointer disabled:opacity-50">

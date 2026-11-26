@@ -14,7 +14,10 @@ import type { Asset, ContactMessage, GitHubSyncConfig, Order, Payout, SiteConfig
 /* Minimal Cloudflare Pages Function ambient types (zero external @cloudflare/workers-types needed) */
 interface KVNamespaceLike {
   get(key: string): Promise<string | null>;
-  put(key: string, value: string): Promise<void>;
+  get(key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
+  getWithMetadata?<M = unknown>(key: string, type: 'arrayBuffer'): Promise<{ value: ArrayBuffer | null; metadata: M | null }>;
+  put(key: string, value: string | ArrayBuffer | Uint8Array, options?: { metadata?: unknown }): Promise<void>;
+  delete?(key: string): Promise<void>;
 }
 
 interface R2ObjectLike {
@@ -584,7 +587,7 @@ async function createSession(env: CfEnv, db: Database, email: string): Promise<{
   return { token, cookie: sessionCookie(token) };
 }
 
-/* ================= R2 IMAGE STORAGE ================= */
+/* ================= IMAGE STORAGE (R2 or KV) ================= */
 // Photos go to the R2 bucket; KV keeps only the short /api/img/... path.
 function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: string } | null {
   const m = dataUrl.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
@@ -595,23 +598,35 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: string } | 
   return { bytes, type: m[1] || 'image/jpeg' };
 }
 
+// Where photos live: R2 bucket if bound, else each photo as its OWN KV key ("img:prev/<id>.jpg").
+// The main database only keeps the short /api/img/... path, so it stays small and fast.
+function imageStoreReady(env: CfEnv): boolean {
+  return !!env.SANTALSTOCK_R2 || !!env.SANTALSTOCK_KV;
+}
+
 async function storeImage(env: CfEnv, kind: 'prev' | 'full', id: string, value: string): Promise<string> {
-  if (!env.SANTALSTOCK_R2 || !value.startsWith('data:')) return value;
+  if (!imageStoreReady(env) || !value.startsWith('data:')) return value;
   const parsed = dataUrlToBytes(value);
   if (!parsed) return value;
   const key = `${kind}/${id}.jpg`;
-  await env.SANTALSTOCK_R2.put(key, parsed.bytes, { httpMetadata: { contentType: parsed.type } });
+  if (env.SANTALSTOCK_R2) {
+    await env.SANTALSTOCK_R2.put(key, parsed.bytes, { httpMetadata: { contentType: parsed.type } });
+  } else {
+    await env.SANTALSTOCK_KV!.put(`img:${key}`, parsed.bytes, { metadata: { type: parsed.type } });
+  }
   return `/api/img/${key}?v=${Date.now().toString(36)}`;
 }
 
 async function deleteImages(env: CfEnv, id: string): Promise<void> {
-  if (!env.SANTALSTOCK_R2) return;
-  await Promise.all(['prev', 'full'].map((k) => env.SANTALSTOCK_R2!.delete(`${k}/${id}.jpg`).catch(() => undefined)));
+  const keys = ['prev', 'full'].map((k) => `${k}/${id}.jpg`);
+  if (env.SANTALSTOCK_R2) await Promise.all(keys.map((k) => env.SANTALSTOCK_R2!.delete(k).catch(() => undefined)));
+  const kv = env.SANTALSTOCK_KV;
+  if (kv && kv.delete) await Promise.all(keys.map((k) => kv.delete!(`img:${k}`).catch(() => undefined)));
 }
 
-// Moves any photo still saved inside KV (base64) into R2. Runs once when R2 is first bound.
+// Moves any photo still saved inside the database (base64) out to R2 or its own KV key. Runs once.
 async function migrateImagesToR2(env: CfEnv, db: Database): Promise<number> {
-  if (!env.SANTALSTOCK_R2) return 0;
+  if (!imageStoreReady(env)) return 0;
   let moved = 0;
   for (const a of db.assets) {
     const full = a.fullUrl && a.fullUrl !== a.prevUrl ? a.fullUrl : '';
@@ -630,16 +645,30 @@ async function migrateImagesToR2(env: CfEnv, db: Database): Promise<number> {
 }
 
 async function serveImage(env: CfEnv, key: string, publicCache: boolean): Promise<Response> {
-  if (!env.SANTALSTOCK_R2) return json({ error: 'Image storage (R2) not configured.' }, 404);
-  const obj = await env.SANTALSTOCK_R2.get(key);
-  if (!obj) return json({ error: 'Image not found.' }, 404);
-  return new Response(obj.body, {
-    headers: {
-      'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg',
-      'Cache-Control': publicCache ? 'public, max-age=31536000, immutable' : 'private, max-age=3600',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  });
+  const cache = publicCache ? 'public, max-age=31536000, immutable' : 'private, max-age=3600';
+  if (env.SANTALSTOCK_R2) {
+    const obj = await env.SANTALSTOCK_R2.get(key);
+    if (obj) {
+      return new Response(obj.body, {
+        headers: { 'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg', 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' },
+      });
+    }
+  }
+  const kv = env.SANTALSTOCK_KV;
+  if (kv) {
+    let body: ArrayBuffer | null = null;
+    let type = 'image/jpeg';
+    if (kv.getWithMetadata) {
+      const r = await kv.getWithMetadata<{ type?: string }>(`img:${key}`, 'arrayBuffer');
+      body = r.value;
+      if (r.metadata?.type) type = r.metadata.type;
+    } else {
+      body = await kv.get(`img:${key}`, 'arrayBuffer');
+    }
+    if (body) return new Response(body, { headers: { 'Content-Type': type, 'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff' } });
+  }
+  if (!imageStoreReady(env)) return json({ error: 'Image storage not configured (bind SANTALSTOCK_KV).' }, 404);
+  return json({ error: 'Image not found.' }, 404);
 }
 
 /* ================= DUPLICATE DETECTION: LAYER 3 (INTERNET) ================= */
@@ -698,7 +727,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
   const db = await loadDb(env);
   await preVerifyToken(request, env, db);
 
-  if (env.SANTALSTOCK_R2 && db.assets.some((a) => (a.prevUrl || '').startsWith('data:') || (a.fullUrl || '').startsWith('data:'))) {
+  if (imageStoreReady(env) && db.assets.some((a) => (a.prevUrl || '').startsWith('data:') || (a.fullUrl || '').startsWith('data:'))) {
     try {
       if ((await migrateImagesToR2(env, db)) > 0) await saveDb(env, db);
     } catch {
@@ -725,7 +754,8 @@ export async function onRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v19',
+      deployHasCode: 'v20',
+      photoStore: env.SANTALSTOCK_R2 ? 'R2' : env.SANTALSTOCK_KV ? 'KV (one key per photo)' : 'none',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
       EMAILJS_PUBLIC_KEY: !!v(env.EMAILJS_PUBLIC_KEY),
@@ -1205,7 +1235,7 @@ export async function onRequest(context: CfContext): Promise<Response> {
     if (!u || u.role !== 'admin') return json({ error: 'Admin access required.' }, 403);
     if (!env.SERPAPI_KEY) return json({ error: 'Auto internet check ke liye Cloudflare me SERPAPI_KEY daalein. Tab tak manual buttons use karein.' }, 400);
     const web = await runWebCheck(env, url.origin, decodeURIComponent(webMatch[1]));
-    if (!web) return json({ error: 'Is photo ka public preview (R2) nahi hai.' }, 400);
+    if (!web) return json({ error: 'Is photo ka public preview (KV/R2) nahi hai.' }, 400);
     return json({ web });
   }
 

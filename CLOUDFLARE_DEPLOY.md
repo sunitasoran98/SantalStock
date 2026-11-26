@@ -23,18 +23,15 @@ This project is pre-configured for **Cloudflare Pages** with:
      - **Variable name**: `SANTALSTOCK_KV`
      - **KV namespace**: select `santalstock-db`
    - Redeploy once so all Admin Mode edits, uploaded photos, orders, and user accounts persist globally across every visitor.
-5b. **Photo Storage (R2) — zaroori, warna ~10-15 photo ke baad upload fail hoga**:
-   - KV ka ek record max 25 MB ka hota hai. R2 ke bina har photo usi record me jaati hai.
-   - Cloudflare Dashboard -> **R2 Object Storage** -> pehli baar **Enable / Purchase R2 Plan** (free plan: 10 GB/month storage, download free; Cloudflare payment method maangta hai, free limit me charge nahi hota).
-   - **Create bucket** -> naam `santalstock-images` -> Location: Automatic.
-   - Pages project -> **Settings** -> **Bindings** -> **Add** -> **R2 bucket**:
-     - **Variable name**: `SANTALSTOCK_R2`
-     - **R2 bucket**: `santalstock-images`
-   - Redeploy. Pehle se KV me padi photos pehli request par apne aap R2 me shift ho jaati hain.
+5b. **Photo Storage — v20 se sirf KV kaafi hai (card nahi chahiye)**:
+   - `SANTALSTOCK_KV` jodne par har photo apni alag KV key (`img:prev/<id>.jpg`, `img:full/<id>.jpg`) me save hoti hai. Database chhota rehta hai.
+   - KV free: 1 GB storage, roz 1,00,000 reads, 1,000 writes (har upload ~3 writes).
+   - Optional, bada storage: R2 bucket (10 GB free, card maangta hai) -> Bindings -> **R2 bucket** -> `SANTALSTOCK_R2`. R2 jodne ke baad nayi photo R2 me jaati hai; purani KV wali chalti rehti hain.
+   - Pehle database ke andar padi (base64) photo pehli request par apne aap bahar shift ho jaati hain.
    - Preview photo sabke liye khuli hai. Full-size file (`/api/img/full/...`) sirf admin, photo ke owner, ya paid order wale buyer ko milti hai.
 5c. **Duplicate photo detection (3 layer)**:
    - Layer 1 Exact (same file) aur Layer 2 Edited (resize, compress, filter, halka crop, mirror) apne aap chalte hain, kuch setup nahi.
-   - Layer 3 Internet: Admin > Review me har photo par Google Lens, TinEye, Bing, Yandex buttons (R2 chalu hona chahiye).
+   - Layer 3 Internet: Admin > Review me har photo par Google Lens, TinEye, Bing, Yandex buttons (KV ya R2 chalu hona chahiye).
    - Optional auto internet check: [SerpApi](https://serpapi.com) key lo, phir Pages -> Settings -> Variables and Secrets me `SERPAPI_KEY` (Secret) add karo. Har nayi upload par Google Lens exact-match search apne aap chalegi; har search SerpApi ka 1 credit leta hai.
 6. **Optional — Real Inbox Email OTP Delivery**:
    - Sign up for a free [Resend](https://resend.com) API key.
@@ -88,7 +85,7 @@ Open `/api/email-status` on the live site. Everything below should be `true`, ex
 | Setting | Type | Needed for |
 |---|---|---|
 | `SANTALSTOCK_KV` | KV binding | users, orders, messages |
-| `SANTALSTOCK_R2` | R2 binding | photos, internet check |
+| `SANTALSTOCK_R2` | R2 binding (optional) | bada photo storage |
 | `EMAILJS_SERVICE_ID` | Secret | OTP email |
 | `EMAILJS_TEMPLATE_ID` | Secret | OTP email |
 | `EMAILJS_PUBLIC_KEY` | Secret | OTP email |

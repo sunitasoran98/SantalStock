@@ -191,16 +191,6 @@ export function Footer({ lang, onChangeLang, siteConfig, adminMode, onAdminEdit,
             ))}
           </div>
         </div>
-        <div className="border-t border-white/10">
-          <p className="wrap m-0 py-2.5 text-center text-[11.5px] text-[#9fb0cc]">
-            {siteConfig.footer.madeWith.split('♥').map((part, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <span className="text-[#ff5a63]" aria-label="love">♥</span>}
-                {part}
-              </React.Fragment>
-            ))}
-          </p>
-        </div>
       </div>
       <FeedbackModal toast={toast} />
     </footer>
