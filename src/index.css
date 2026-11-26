@@ -170,3 +170,38 @@ html.dark .no-invert {
     background: #fff !important;
   }
 }
+
+/* No sideways scrolling anywhere */
+html { overflow-x: hidden; }
+body { overflow-x: clip; max-width: 100%; }
+img, video, canvas, svg { max-width: 100%; }
+pre, code { overflow-wrap: anywhere; }
+
+/* Header icon tooltips: icon only, full name on hover / keyboard focus */
+.hdr-tip { position: relative; }
+.hdr-tip[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translate(-50%, -4px);
+  background: #011f43;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px -10px rgba(1, 31, 67, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 60;
+}
+.hdr-tip.tip-end[data-tip]::after { left: auto; right: 0; transform: translateY(-4px); }
+.hdr-tip[data-tip]:hover::after,
+.hdr-tip[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.hdr-tip.tip-end[data-tip]:hover::after,
+.hdr-tip.tip-end[data-tip]:focus-visible::after { transform: translateY(0); }
+@media (hover: none) { .hdr-tip[data-tip]::after { display: none; } }

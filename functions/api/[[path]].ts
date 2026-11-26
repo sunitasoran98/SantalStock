@@ -867,7 +867,7 @@ async function handleRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v25',
+      deployHasCode: 'v26',
       photoStore: env.SANTALSTOCK_R2 ? 'R2' : env.SANTALSTOCK_KV ? 'KV (one key per photo)' : 'none',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
@@ -1219,6 +1219,25 @@ async function handleRequest(context: CfContext): Promise<Response> {
         return { ...h, mine: a.owner === u.email, title: visible ? a.title : '', thumb: visible ? a.prevUrl || '' : '', status: a.status };
       }),
     });
+  }
+
+  // Admin back-fill: hashes for old photos that were uploaded before duplicate check existed.
+  if (method === 'POST' && pathname === '/api/assets/fingerprints') {
+    const u = getAuthUser(request, db);
+    if (!u || u.role !== 'admin') return json({ error: 'Admin only.' }, 403);
+    const b = await readBody(request);
+    const items = Array.isArray(b.items) ? (b.items as Record<string, unknown>[]).slice(0, 50) : [];
+    let n = 0;
+    for (const it of items) {
+      const rec = db.assets.find((a) => a.id === String(it.id || ''));
+      const fp = cleanFingerprint(it);
+      if (!rec || !fp.phash) continue;
+      rec.phash = fp.phash;
+      if (fp.dhash) rec.dhash = fp.dhash;
+      n++;
+    }
+    if (n) await saveDb(env, db);
+    return json({ updated: n });
   }
 
   if (method === 'POST' && pathname === '/api/assets') {

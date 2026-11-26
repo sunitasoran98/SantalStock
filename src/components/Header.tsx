@@ -9,7 +9,6 @@ import {
   Wrench,
   Shield,
   Pencil,
-  ChevronDown,
 } from 'lucide-react';
 import { PORTALS, type AuthPortal } from '../lib/portals';
 import { getSantaliDateTime, LANGS, tr } from '../data/defaults';
@@ -173,54 +172,39 @@ export function Header({
         )}
 
         {/* Circular Tool Icons */}
-        <nav className="flex items-center gap-1.5 sm:gap-2.5 xl:gap-4 shrink-0 flex-wrap justify-end max-w-full">
+        <nav className="hdr-tip flex items-center gap-1.5 sm:gap-2.5 xl:gap-4 shrink-0 flex-wrap justify-end max-w-full">
           <button
             type="button"
             onClick={onToggleDark}
-            title="Dark mode"
-            className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="Dark mode" data-tip="Dark mode"
+            className="hdr-tip flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#fff4d6] text-[#b7791f] ring-1 ring-[#011f43]/10 flex items-center justify-center text-lg shrink-0 transition-transform group-hover:-translate-y-0.5">
               {dark ? '☀️' : '🌙'}
             </span>
-            {!isCompact && (
-              <span className="hidden xl:inline text-left whitespace-nowrap">
-                Dark<br />mode
-              </span>
-            )}
           </button>
 
           <button
             type="button"
             onClick={onCycleFontSize}
-            title="Text size"
-            className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="Text size" data-tip="Text size"
+            className="hdr-tip flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e8f0ff] text-[#1f6fd1] ring-1 ring-[#011f43]/10 flex items-center justify-center text-sm font-extrabold shrink-0 transition-transform group-hover:-translate-y-0.5">
               {['A', 'A+', 'A++'][fontSizeStep]}
             </span>
-            {!isCompact && (
-              <span className="hidden xl:inline text-left whitespace-nowrap">
-                Text<br />size
-              </span>
-            )}
           </button>
 
           <div ref={langRef} className="relative">
             <button
               type="button"
               onClick={() => setLangMenuOpen((o) => !o)}
-              title="Language"
-              className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+              aria-label="Language" data-tip="Language"
+              className="hdr-tip flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
             >
               <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e6f6ef] text-[#1b8a4b] ring-1 ring-[#011f43]/10 flex items-center justify-center text-base font-bold font-serif shrink-0 transition-transform group-hover:-translate-y-0.5">
                 {langShort}
               </span>
-              {!isCompact && (
-                <span className="hidden xl:inline text-left whitespace-nowrap">
-                  Lang-<br />uage
-                </span>
-              )}
             </button>
             {langMenuOpen && (
               <div className="absolute right-0 top-[calc(100%+8px)] z-50 bg-white border border-[#dbe3ef] rounded-2xl shadow-[0_18px_40px_-12px_rgba(1,31,67,0.35)] p-1.5 min-w-[210px]">
@@ -246,8 +230,8 @@ export function Header({
           <button
             type="button"
             onClick={() => onNavigate('#/about')}
-            title="About"
-            className="hidden sm:flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="About" data-tip="About"
+            className="hdr-tip hidden sm:flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#f1e9ff] text-[#6b46c1] ring-1 ring-[#011f43]/10 flex items-center justify-center font-serif font-bold text-lg shrink-0 transition-transform group-hover:-translate-y-0.5">
               i
@@ -257,53 +241,41 @@ export function Header({
           <button
             type="button"
             onClick={() => onNavigate('#/search')}
-            title="Advance search"
-            className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="Advance search" data-tip="Advance search"
+            className="hdr-tip flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e3f4f8] text-[#0e7490] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <SlidersHorizontal className="w-4 h-4" />
             </span>
-            {!isCompact && (
-              <span className="hidden xl:inline text-left whitespace-nowrap">
-                Advance<br />search
-              </span>
-            )}
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate('#/ai')}
-            title="AI search"
-            className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="AI search" data-tip="AI search"
+            className="hdr-tip flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-gradient-to-br from-[#f2b8c6] to-[#a98fd6] text-[#011f43] flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <Sparkles className="w-5 h-5" />
             </span>
-            {!isCompact && (
-              <span className="hidden xl:inline text-left whitespace-nowrap">
-                AI<br />search
-              </span>
-            )}
           </button>
 
           <button
             type="button"
             onClick={openDonate}
-            title="Donate / Support"
-            aria-label="Donate"
-            className="flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="Donate / Support" data-tip="Donate / Support"
+            className="hdr-tip flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-gradient-to-br from-[#e11d48] to-[#f97316] text-white ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5 shadow-sm">
               <Heart className="w-4 h-4 fill-white" />
             </span>
-            {!isCompact && <span className="hidden xl:inline ml-1.5 text-xs font-bold text-[#c8102e]">Donate</span>}
           </button>
 
           <button
             type="button"
             onClick={() => onNavigate('#/lightbox')}
-            title="Lightbox"
-            className="flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="Lightbox" data-tip="Lightbox"
+            className="hdr-tip flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#ffe9ec] text-[#d6262f] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <Heart className="w-4 h-4" />
@@ -313,8 +285,8 @@ export function Header({
           <button
             type="button"
             onClick={() => onNavigate('#/cart')}
-            title="Cart"
-            className="relative flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
+            aria-label="Cart" data-tip="Cart"
+            className="hdr-tip tip-end relative flex items-center text-[#13203a] cursor-pointer bg-transparent border-0 p-0 group"
           >
             <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#fff0e3] text-[#e0730f] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
               <ShoppingCart className="w-4 h-4" />
@@ -329,21 +301,12 @@ export function Header({
               <button
                 type="button"
                 onClick={() => onNavigate('#/account')}
-                title="Account"
-                className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+                aria-label="Account" data-tip={`${user.name.split(' ')[0]}${user.credits ? ` · ${user.credits} cr` : ''}`}
+                className="hdr-tip tip-end flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
               >
                 <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e8f0ff] text-[#1f6fd1] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
                   <UserIcon className="w-4 h-4" />
                 </span>
-                {!isCompact && (
-                  <span className="hidden xl:inline text-left whitespace-nowrap">
-                    {user.name.split(' ')[0]}
-                    <br />
-                    <span className="text-xs text-[#5c6170]">
-                      {user.credits ? `${user.credits} cr` : 'Account'}
-                    </span>
-                  </span>
-                )}
               </button>
 
               {user.role === 'admin' && (
@@ -351,32 +314,26 @@ export function Header({
                   <button
                     type="button"
                     onClick={() => onNavigate('#/admin')}
-                    title="Admin dashboard"
-                    className="flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
+                    aria-label="Admin dashboard" data-tip="Admin dashboard"
+                    className="hdr-tip tip-end flex items-center gap-2 text-[#13203a] text-[14px] leading-tight cursor-pointer bg-transparent border-0 p-0 group"
                   >
                     <span className="w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#e6f6ef] text-[#1b8a4b] ring-1 ring-[#011f43]/10 flex items-center justify-center shrink-0 transition-transform group-hover:-translate-y-0.5">
                       <Shield className="w-4 h-4" />
                     </span>
-                    {!isCompact && (
-                      <span className="hidden 2xl:inline text-left whitespace-nowrap">
-                        Admin<br />panel
-                      </span>
-                    )}
                   </button>
 
                   {/* Live Admin Edit Mode Toggle */}
                   <button
                     type="button"
                     onClick={onToggleAdminMode}
-                    title="Toggle Click-to-Edit Admin Mode"
-                    className={`no-invert inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-extrabold whitespace-nowrap shrink-0 shadow cursor-pointer transition-all ${
+                    data-tip={adminMode ? 'Admin Mode: ON' : 'Admin Mode: OFF'} aria-label="Admin Mode"
+                    className={`hdr-tip tip-end no-invert w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 inline-flex items-center justify-center rounded-full shrink-0 shadow cursor-pointer transition-all ${
                       adminMode
                         ? 'bg-[#d6262f] text-white ring-2 ring-[#d6262f]/40'
                         : 'bg-white text-[#011f43] border border-[#c5cfe0] hover:border-[#d6262f]'
                     }`}
                   >
-                    <Wrench className="w-3.5 h-3.5" />
-                    {adminMode ? 'Admin Mode: ON' : 'Admin Mode'}
+                    <Wrench className="w-4 h-4" />
                   </button>
                 </>
               )}
@@ -390,14 +347,11 @@ export function Header({
                 onFocus={() => void import('./AuthModal')}
                 aria-haspopup="menu"
                 aria-expanded={loginOpen}
-                title="Login"
-                className="h-9 sm:h-10 pl-1 pr-3 rounded-full bg-[#1f6fd1] hover:bg-[#185cb0] text-white flex items-center gap-1.5 text-[13.5px] font-semibold cursor-pointer border-0 shadow-[0_6px_14px_-6px_rgba(31,111,209,0.7)] transition"
+                aria-label="Login"
+                data-tip={loginOpen ? undefined : 'Login'}
+                className="hdr-tip tip-end w-9 h-9 sm:w-10 sm:h-10 xl:w-11 xl:h-11 rounded-full bg-[#1f6fd1] hover:bg-[#185cb0] text-white flex items-center justify-center cursor-pointer border-0 shadow-[0_6px_14px_-6px_rgba(31,111,209,0.7)] transition"
               >
-                <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 flex items-center justify-center">
-                  <Lock className="w-3.5 h-3.5" />
-                </span>
-                Login
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${loginOpen ? 'rotate-180' : ''}`} />
+                <Lock className="w-4 h-4" />
               </button>
               {loginOpen && (
                 <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-50 w-[250px] bg-white rounded-2xl border border-[#e1e5ec] shadow-[0_20px_40px_-14px_rgba(1,31,67,0.35)] p-1.5">

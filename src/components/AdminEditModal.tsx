@@ -4,6 +4,9 @@ import { thumbUrl } from '../data/defaults';
 import ComboBox from './ComboBox';
 import { CATEGORY_OPTIONS, TITLE_OPTIONS } from '../data/pickLists';
 import type { AdminEditTarget, Asset, LicenseOptionKey, SiteConfig, SizeKey, User } from '../types';
+import { api } from '../lib/api';
+import { fingerprintFile, type ImageFingerprint } from '../lib/imageFingerprint';
+import { UploadDupStatus, type DupMatch, type DupState } from './DuplicateCheck';
 
 interface AdminEditModalProps {
   target: AdminEditTarget;
@@ -77,6 +80,8 @@ export function AdminEditModal({
   const [photoCaption, setPhotoCaption] = useState(existingPhoto?.caption || '');
   const [photoKw, setPhotoKw] = useState((existingPhoto?.kw || []).join(', '));
   const [uploadedImg, setUploadedImg] = useState<{ w: number; h: number; prevUrl: string; fullUrl: string } | null>(null);
+  const [photoFp, setPhotoFp] = useState<ImageFingerprint | null>(null);
+  const [dup, setDup] = useState<DupState>({ state: 'idle' });
 
   const [newCatInput, setNewCatInput] = useState('');
 
@@ -99,6 +104,18 @@ export function AdminEditModal({
       toast('Please select an image file first');
       return;
     }
+    if (uploadedImg && dup.state === 'checking') {
+      toast('Duplicate jaanch chal rahi hai, 2 second rukiye');
+      return;
+    }
+    const matches = dup.state === 'done' ? dup.matches : [];
+    const exact = matches.find((m) => m.kind === 'exact');
+    if (uploadedImg && exact) {
+      toast(`⛔ Ye photo pehle se SantalStock par hai (${exact.id}). Duplicate upload nahi hoga.`);
+      return;
+    }
+    const close = matches.find((m) => m.kind === 'similar' && m.score >= 90);
+    if (uploadedImg && close && !window.confirm(`Ye photo ${close.id} se ${close.score}% milti hai. Phir bhi upload karein?`)) return;
     setSaving(true);
     try {
       await onSavePhoto(existingPhoto ? existingPhoto.id : null, {
@@ -114,6 +131,7 @@ export function AdminEditModal({
         caption: photoCaption,
         kw: kwList.length ? kwList : [photoCat.toLowerCase(), 'santalstock'],
         ...(uploadedImg || {}),
+        ...(uploadedImg && photoFp ? photoFp : {}),
       });
       onClose();
     } catch (err) {
@@ -1383,17 +1401,28 @@ export function AdminEditModal({
                     onChange={async (e) => {
                       const f = e.target.files?.[0];
                       if (!f) return;
+                      setDup({ state: 'checking' });
+                      setPhotoFp(null);
                       try {
-                        const res = await resizeImageFile(f);
+                        const [res, print] = await Promise.all([resizeImageFile(f), fingerprintFile(f).catch(() => null)]);
                         setUploadedImg(res);
-                        toast(`Image ready (${res.w}×${res.h}px)`);
+                        setPhotoFp(print);
+                        if (!print) {
+                          setDup({ state: 'error' });
+                          return;
+                        }
+                        const r = await api<{ matches: DupMatch[] }>('/api/assets/check-duplicate', { method: 'POST', body: JSON.stringify(print) });
+                        const matches = (r.matches || []).filter((m) => m.id !== existingPhoto?.id);
+                        setDup({ state: 'done', matches });
+                        toast(matches.some((m) => m.kind === 'exact') ? `⛔ Ye photo pehle se hai (${matches[0].id})` : `Image ready (${res.w}×${res.h}px)`);
                       } catch {
-                        toast('Failed to read image');
+                        setDup((d) => (d.state === 'checking' ? { state: 'error' } : d));
                       }
                     }}
                   />
                 </label>
               </div>
+              <UploadDupStatus dup={dup} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold block mb-1">Photo Title</label>

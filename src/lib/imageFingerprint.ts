@@ -76,3 +76,13 @@ export async function fingerprintFile(file: File): Promise<ImageFingerprint> {
     bmp.close();
   }
 }
+
+/** Same hashes for an image already on the site (used to back-fill old photos). */
+export async function fingerprintBlob(blob: Blob): Promise<Omit<ImageFingerprint, 'sha256'>> {
+  const bmp = await createImageBitmap(blob);
+  try {
+    return { phash: pHash(bmp, false), dhash: dHash(bmp, false), phashFlip: pHash(bmp, true), dhashFlip: dHash(bmp, true) };
+  } finally {
+    bmp.close();
+  }
+}

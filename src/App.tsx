@@ -10,6 +10,7 @@ import {
   tr,
 } from './data/defaults';
 import { api, getToken, setToken } from './lib/api';
+import { useFingerprintBackfill } from './lib/fpBackfill';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { SearchCapsule } from './components/SearchCapsule';
@@ -187,6 +188,7 @@ export default function App() {
   useEffect(() => {
     fetchState();
   }, [fetchState]);
+  useFingerprintBackfill(user?.role === 'admin', assets, fetchState);
 
   useEffect(() => {
     const onHash = () => {
@@ -639,34 +641,41 @@ export default function App() {
                 label="CTA Banner"
                 onEdit={() => setAdminEditTarget({ section: 'ctaBanner' })}
               >
-                <div
-                  className="rounded-xl p-6 flex items-center justify-between gap-4 flex-wrap"
-                  style={{
-                    backgroundColor: siteConfig.ctaBanner.bgColor,
-                    color: siteConfig.ctaBanner.textColor,
-                    opacity: siteConfig.ctaBanner.visible ? 1 : 0.45,
-                  }}
-                >
-                  <div>
-                    <h3 className="dm text-[26px] m-0">
-                      {siteConfig.ctaBanner.titleCustom || tr(lang, 'ctaT')}
-                    </h3>
-                    <p className="mt-1 mb-0 opacity-85 text-sm">
-                      {siteConfig.ctaBanner.subtitleCustom ||
-                        `${tr(lang, 'ctaS')} RF ${Math.round(siteConfig.pricing.royalty.rf * 100)}% · Editorial ${Math.round(siteConfig.pricing.royalty.editorial * 100)}% · Min payout ${money(siteConfig.pricing.payoutMin)}`}
-                    </p>
-                  </div>
-                  <a
-                    href={siteConfig.ctaBanner.buttonLink}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (!adminMode) navigate(siteConfig.ctaBanner.buttonLink);
-                    }}
-                    className="px-5 py-2.5 rounded-lg bg-[#d6262f] text-white font-semibold no-underline"
-                  >
-                    {siteConfig.ctaBanner.buttonTextCustom || tr(lang, 'ctaB')}
-                  </a>
-                </div>
+                {(() => {
+                  const cb = siteConfig.ctaBanner;
+                  const custom = cb.bgColor && !['#011f43', '#0d2f5c', '#000000'].includes(cb.bgColor.toLowerCase());
+                  return (
+                    <div
+                      className={`relative overflow-hidden rounded-2xl p-6 sm:p-7 flex items-center justify-between gap-5 flex-wrap border ${custom ? '' : 'bg-gradient-to-br from-[#fff7ef] via-[#fffaf5] to-[#eef4ff] border-[#f1dcc6] text-[#011f43]'}`}
+                      style={{ ...(custom ? { backgroundColor: cb.bgColor, color: cb.textColor, borderColor: 'transparent' } : {}), opacity: cb.visible ? 1 : 0.45 }}
+                    >
+                      <div className="flex items-start gap-4 min-w-0 flex-1">
+                        <span className="hidden sm:flex w-12 h-12 rounded-2xl bg-white shadow-sm ring-1 ring-[#f1dcc6] items-center justify-center text-2xl shrink-0" aria-hidden>📷</span>
+                        <div className="min-w-0">
+                          <h3 className="dm text-[26px] leading-tight m-0">{cb.titleCustom || tr(lang, 'ctaT')}</h3>
+                          <p className={`mt-1 mb-0 text-sm ${custom ? 'opacity-85' : 'text-[#4a5468]'}`}>{cb.subtitleCustom || tr(lang, 'ctaS')}</p>
+                          {!cb.subtitleCustom && (
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              <span className="px-2.5 py-1 rounded-full bg-[#e6f4ea] text-[#11602d] text-xs font-bold">Royalty-Free {Math.round(siteConfig.pricing.royalty.rf * 100)}%</span>
+                              <span className="px-2.5 py-1 rounded-full bg-[#f2e8fd] text-[#7a22c9] text-xs font-bold">Editorial {Math.round(siteConfig.pricing.royalty.editorial * 100)}%</span>
+                              <span className="px-2.5 py-1 rounded-full bg-[#e8f0ff] text-[#1f4fa3] text-xs font-bold">Min payout {money(siteConfig.pricing.payoutMin)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <a
+                        href={cb.buttonLink}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (!adminMode) navigate(cb.buttonLink);
+                        }}
+                        className="shrink-0 px-5 py-3 rounded-xl bg-[#d6262f] hover:bg-[#b81f27] text-white font-semibold no-underline shadow-[0_8px_18px_-8px_rgba(214,38,47,0.7)] transition-colors"
+                      >
+                        {cb.buttonTextCustom || tr(lang, 'ctaB')} →
+                      </a>
+                    </div>
+                  );
+                })()}
               </AdminEditable>
             </section>
           )}
