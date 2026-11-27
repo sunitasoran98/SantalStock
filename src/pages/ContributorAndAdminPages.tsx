@@ -7,6 +7,7 @@ import { thumbUrl, tr } from '../data/defaults';
 import { api } from '../lib/api';
 import { fingerprintFile, type ImageFingerprint } from '../lib/imageFingerprint';
 import { AdminDupPanel, UploadDupStatus, type DupMatch, type DupState } from '../components/DuplicateCheck';
+import { webResultText } from '../lib/webResult';
 import type { AdminEditTarget, Asset, LangCode, Order, Payout, SiteConfig, User } from '../types';
 
 function readImageForUpload(file: File): Promise<{ w: number; h: number; prevUrl: string; fullUrl: string }> {
@@ -157,7 +158,7 @@ export function ContributorPage({
     if (dupBlocked) return toast('Ye photo pehle se SantalStock par hai');
     setSubmitting(true);
     try {
-      await api('/api/assets', {
+      const res = await api<{ asset?: Asset }>('/api/assets', {
         method: 'POST',
         body: JSON.stringify({
           title,
@@ -184,7 +185,7 @@ export function ContributorPage({
       setTitle('');
       setDesc('');
       setKw('');
-      toast(user?.role === 'admin' ? 'Photo published ✓' : 'Review ke liye bheja ✓');
+      toast(user?.role === 'admin' ? `Photo published ✓ ${webResultText(res.asset?.web)}` : 'Review ke liye bheja ✓');
       onNavigate('#/contributor/portfolio');
     } catch (err) {
       toast((err as Error).message);

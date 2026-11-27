@@ -867,7 +867,7 @@ async function handleRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v26',
+      deployHasCode: 'v27',
       photoStore: env.SANTALSTOCK_R2 ? 'R2' : env.SANTALSTOCK_KV ? 'KV (one key per photo)' : 'none',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
@@ -1297,9 +1297,11 @@ async function handleRequest(context: CfContext): Promise<Response> {
     db.assets.unshift(asset);
     await saveDb(env, db);
     if (env.SERPAPI_KEY && asset.prevUrl?.startsWith('/api/img/')) {
+      // v27: wait up to 15s so the uploader sees the internet result at once; slower checks finish in background.
       const job = runWebCheck(env, url.origin, asset.id).catch(() => null);
       if (context.waitUntil) context.waitUntil(job);
-      else await job;
+      const web = await Promise.race([job, new Promise<null>((r) => setTimeout(() => r(null), 15000))]);
+      if (web) asset.web = web;
     }
     if (u.role === 'admin') await maybeAutoSyncGitHub(env, db, `Add photo ${asset.id}`);
     return json({ asset });

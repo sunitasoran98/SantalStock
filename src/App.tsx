@@ -17,6 +17,7 @@ import { SearchCapsule } from './components/SearchCapsule';
 import { PhotoTile } from './components/PhotoTile';
 import { TextReader } from './components/TextReader';
 import type { AuthPortal } from './lib/portals';
+import { webResultText } from './lib/webResult';
 const AuthModal = React.lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
 import { AdminEditable } from './components/AdminEditable';
 const AdminEditModal = React.lazy(() => import('./components/AdminEditModal').then((m) => ({ default: m.AdminEditModal })));
@@ -142,7 +143,7 @@ export default function App() {
     setToastMsg(m);
     window.setTimeout(() => {
       setToastMsg((cur) => (cur === m ? '' : cur));
-    }, 2800);
+    }, Math.max(2800, m.length * 70));
   }, []);
 
   const fetchState = useCallback(async () => {
@@ -324,8 +325,8 @@ export default function App() {
         await api(`/api/assets/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
         toast('Photo updated ✓');
       } else {
-        await api('/api/assets', { method: 'POST', body: JSON.stringify(payload) });
-        toast('Photo added & published ✓');
+        const res = await api<{ asset?: Asset }>('/api/assets', { method: 'POST', body: JSON.stringify(payload) });
+        toast(`Photo added & published ✓ ${webResultText(res.asset?.web)}`);
       }
       await fetchState();
     },
@@ -831,6 +832,7 @@ export default function App() {
           onDeleteAsset={handleDeletePhoto}
           money={money}
           toast={toast}
+          onRefresh={fetchState}
         />
       );
     }

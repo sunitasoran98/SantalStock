@@ -7,6 +7,7 @@ import { api, getToken } from '../lib/api';
 import { PhotoTile } from '../components/PhotoTile';
 import { UpiQr } from '../components/UpiQr';
 import { DonateButton } from '../components/DonateModal';
+import { AdminDupPanel } from '../components/DuplicateCheck';
 import type { AdminEditTarget, Asset, CartItem, LangCode, LicenseOptionKey, Order, SiteConfig, SizeKey, User } from '../types';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -79,6 +80,7 @@ interface AssetDetailProps {
   onDeleteAsset: (id: string) => Promise<void>;
   money: (n: number) => string;
   toast: (m: string) => void;
+  onRefresh?: () => Promise<void>;
 }
 
 export function AssetDetailPage({
@@ -98,6 +100,7 @@ export function AssetDetailPage({
   onDeleteAsset,
   money,
   toast,
+  onRefresh,
 }: AssetDetailProps) {
   const allowed: LicenseOptionKey[] = asset?.lic === 'editorial' ? ['ed'] : ['std', 'ext', 'ed'];
   const [lic, setLic] = useState<LicenseOptionKey>(allowed[0]);
@@ -267,6 +270,13 @@ export function AssetDetailPage({
               </div>
             ) : adminMode ? (
               <button type="button" onClick={() => onAdminEdit({ section: 'editPhoto', itemId: asset.id })} className="mt-4 w-full rounded-xl border border-dashed border-[#b8c2d6] bg-[#f8faff] p-3 text-sm text-[#2f3f8f] font-semibold cursor-pointer">+ Description jodein (sirf admin ko dikhta hai)</button>
+            ) : null}
+
+            {adminMode && onRefresh ? (
+              <div className="mt-4">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#8a90a0] mb-1">Duplicate &amp; internet jaanch (sirf admin)</div>
+                <AdminDupPanel asset={asset} assets={allAssets} onRefresh={onRefresh} toast={toast} />
+              </div>
             ) : null}
 
             <div className="mt-4 rounded-xl border border-[#e3e6ee] bg-white overflow-hidden">
