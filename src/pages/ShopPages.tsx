@@ -388,11 +388,11 @@ export function AssetDetailPage({
                       aria-checked={on}
                       onClick={() => setSize(s.k)}
                       className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold cursor-pointer transition-colors ${
-                        on ? 'bg-[#011f43] border-[#011f43] text-white shadow-sm' : 'bg-white border-[#d9dbe1] text-[#011f43] hover:border-[#011f43]'
+                        on ? 'bg-[#e8f6f3] border-[#0f766e] text-[#0f766e] ring-2 ring-[#0f766e]/15' : 'bg-white border-[#d9dbe1] text-[#2b3242] hover:border-[#0f766e] hover:text-[#0f766e]'
                       }`}
                     >
                       {s.n}
-                      <span className={`tabular-nums text-[12px] ${on ? 'text-white/80' : 'text-[#5c6170]'}`}>{money(siteConfig.pricing.matrix[activeLic][s.k] ?? 0)}</span>
+                      <span className={`tabular-nums text-[12px] ${on ? 'text-[#0f766e]/80' : 'text-[#5c6170]'}`}>{money(siteConfig.pricing.matrix[activeLic][s.k] ?? 0)}</span>
                     </button>
                   );
                 })}
@@ -413,7 +413,7 @@ export function AssetDetailPage({
                 <button
                   type="button"
                   onClick={() => onAddCart({ id: asset.id, lic: activeLic, size, price }, false)}
-                  className="flex-1 py-2.5 rounded-lg bg-[#011f43] text-white font-semibold text-sm cursor-pointer"
+                  className="flex-1 py-2.5 rounded-lg bg-[#0f766e] hover:bg-[#0c5f59] text-white font-semibold text-sm cursor-pointer transition-colors"
                 >
                   {tr(lang, 'addcart')}
                 </button>
