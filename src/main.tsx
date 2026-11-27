@@ -6,5 +6,8 @@ import '@fontsource-variable/noto-sans-devanagari/wght.css';
 import '@fontsource-variable/noto-sans-ol-chiki/wght.css';
 import '@fontsource/dm-serif-display/latin-400.css';
 import './index.css';
+import { initPwa } from './lib/pwa';
+
+initPwa();
 
 createRoot(document.getElementById('root')!).render(<App />);

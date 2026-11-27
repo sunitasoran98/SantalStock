@@ -14,6 +14,7 @@ import { PORTALS, type AuthPortal } from '../lib/portals';
 import { getSantaliDateTime, LANGS, tr } from '../data/defaults';
 import { SearchCapsule } from './SearchCapsule';
 import { openDonate } from './DonateModal';
+import { InstallButton } from './InstallButton';
 import type { AdminEditTarget, LangCode, SiteConfig, User } from '../types';
 
 interface HeaderProps {
@@ -173,6 +174,7 @@ export function Header({
 
         {/* Circular Tool Icons */}
         <nav className="hdr-tip flex items-center gap-1.5 sm:gap-2.5 xl:gap-4 shrink-0 flex-wrap justify-end max-w-full">
+          <InstallButton />
           <button
             type="button"
             onClick={onToggleDark}
