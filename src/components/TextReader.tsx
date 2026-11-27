@@ -239,11 +239,12 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
 
   return (
     <div className="noprint">
-      {/* One floating dock: [‹ Home] [reader icon] [settings] [End ›] */}
+      {/* One floating dock, stacked top to bottom: [Home ▲] [reader] [settings] [feedback] [End ▼] */}
       <div
-        className="fixed right-3 sm:right-5 bottom-3 sm:bottom-5 z-40 transition-transform duration-150 flex items-center gap-0.5 p-1 rounded-full bg-[#011f43]/95 backdrop-blur text-white shadow-[0_12px_32px_-10px_rgba(1,31,67,0.6)] ring-1 ring-white/10"
+        className="fixed right-2 sm:right-4 bottom-3 sm:bottom-5 z-40 transition-transform duration-150 flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-full bg-gradient-to-b from-[#14958a] to-[#0f766e] backdrop-blur text-white shadow-[0_12px_32px_-10px_rgba(15,118,110,0.65)] ring-1 ring-white/20"
         style={{ marginBottom: 'env(safe-area-inset-bottom)', transform: lift ? `translateY(-${lift}px)` : undefined }}
         role="toolbar"
+        aria-orientation="vertical"
         aria-label="Page tools"
       >
         <button
@@ -251,11 +252,12 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           aria-label={tr(lang, 'pgTop')}
           title={`${tr(lang, 'pgTop')} · Home`}
-          className="h-9 pl-2 pr-3 rounded-full flex items-center gap-1 text-[12px] font-semibold tracking-wide cursor-pointer hover:bg-white/10 transition"
+          className="w-10 py-1 rounded-full flex flex-col items-center leading-none text-[9.5px] font-bold tracking-wide cursor-pointer hover:bg-white/15 transition"
         >
-          <ChevronLeft className="w-4 h-4 text-[#8fd4ad]" strokeWidth={2.75} aria-hidden /> Home
+          <ChevronUp className="w-4 h-4 text-[#fff1b8]" strokeWidth={2.75} aria-hidden />
+          Home
         </button>
-        <span className="w-px h-5 bg-white/15" aria-hidden />
+        <span className="h-px w-5 bg-white/25" aria-hidden />
         <button
           type="button"
           onClick={() => (state === 'play' ? pause() : startReading())}
@@ -263,7 +265,7 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
           title={`${tr(lang, 'reader')} · ${state === 'play' ? tr(lang, 'pause') : tr(lang, 'listen')}`}
           aria-pressed={state === 'play'}
           className={`relative w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition ${
-            state === 'play' ? 'bg-[#d6262f] text-white' : 'hover:bg-white/10 text-[#ffd479]'
+            state === 'play' ? 'bg-[#d6262f] text-white' : 'hover:bg-white/15 text-[#fff1b8]'
           }`}
         >
           {state === 'play' ? <Pause className="w-4 h-4" aria-hidden /> : <ReaderMark className="w-[18px] h-[18px]" />}
@@ -275,33 +277,34 @@ export function TextReader({ lang, onChangeLang, externalText, toast }: TextRead
           aria-label={tr(lang, 'reader')}
           aria-expanded={open}
           title={tr(lang, 'reader')}
-          className={`w-7 h-9 rounded-full flex items-center justify-center cursor-pointer transition ${open ? 'bg-white/15 text-[#8ec5ff]' : 'hover:bg-white/10 text-[#8ec5ff]'}`}
+          className={`w-9 h-8 rounded-full flex items-center justify-center cursor-pointer transition text-white ${open ? 'bg-white/25' : 'hover:bg-white/15'}`}
         >
-          <Settings2 className="w-3.5 h-3.5" aria-hidden />
+          <Settings2 className="w-4 h-4" aria-hidden />
         </button>
         <button
           type="button"
           onClick={openFeedback}
           aria-label="Suggestion / Feedback"
           title="Suggestion / Feedback"
-          className="w-7 h-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/10 text-[#ff9aa0] transition"
+          className="w-9 h-8 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/15 text-[#ffd6d9] transition"
         >
-          <MessageSquarePlus className="w-3.5 h-3.5" aria-hidden />
+          <MessageSquarePlus className="w-4 h-4" aria-hidden />
         </button>
-        <span className="w-px h-5 bg-white/15" aria-hidden />
+        <span className="h-px w-5 bg-white/25" aria-hidden />
         <button
           type="button"
           onClick={() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })}
           aria-label={tr(lang, 'pgEnd')}
           title={`${tr(lang, 'pgEnd')} · End`}
-          className="h-9 pl-3 pr-2 rounded-full flex items-center gap-1 text-[12px] font-semibold tracking-wide cursor-pointer hover:bg-white/10 transition"
+          className="w-10 py-1 rounded-full flex flex-col items-center leading-none text-[9.5px] font-bold tracking-wide cursor-pointer hover:bg-white/15 transition"
         >
-          End <ChevronRight className="w-4 h-4 text-[#ffb37a]" strokeWidth={2.75} aria-hidden />
+          End
+          <ChevronDown className="w-4 h-4 text-[#fff1b8]" strokeWidth={2.75} aria-hidden />
         </button>
       </div>
 
       {open && (
-        <div className="fixed right-3 sm:right-5 bottom-[64px] sm:bottom-[72px] z-40 bg-white/95 backdrop-blur border border-[#d9dbe1] rounded-2xl shadow-[0_24px_48px_-16px_rgba(1,31,67,0.45)] p-4 w-[300px] max-w-[calc(100vw-32px)]">
+        <div className="fixed right-[60px] sm:right-[72px] bottom-3 sm:bottom-5 z-40 bg-white/95 backdrop-blur border border-[#d9dbe1] rounded-2xl shadow-[0_24px_48px_-16px_rgba(1,31,67,0.45)] p-4 w-[300px] max-w-[calc(100vw-32px)]">
           <div className="flex items-center justify-between mb-2">
             <h4 className="m-0 font-bold text-sm text-[#011f43] flex items-center gap-2"><span className="w-7 h-7 rounded-lg bg-[#011f43] text-white flex items-center justify-center"><ReaderMark className="w-4.5 h-4.5" active={state === 'play'} /></span> {tr(lang, 'reader')}</h4>
             <button

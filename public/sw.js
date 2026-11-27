@@ -1,5 +1,5 @@
 /* SantalStock service worker (v30). Makes the app installable, fast on repeat visits, and usable offline. */
-const VER = 'ss-v30';
+const VER = 'ss-v31';
 const SHELL = `${VER}-shell`;
 const ASSETS = `${VER}-assets`;
 const IMGS = `${VER}-img`;
