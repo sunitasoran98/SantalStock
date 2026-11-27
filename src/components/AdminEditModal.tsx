@@ -892,7 +892,7 @@ export function AdminEditModal({
                     {(['std', 'ext', 'ed'] as LicenseOptionKey[]).map((lk) => (
                       <tr key={lk} className="border-b border-[#e5e8ef]">
                         <td className="py-2 pr-2 font-semibold">{cfg.pricing.licMeta[lk].n}</td>
-                        {(['S', 'M', 'L'] as SizeKey[]).map((sk) => (
+                        {(['XS', 'S', 'M', 'L'] as SizeKey[]).map((sk) => (
                           <td key={sk} className="py-2 px-1.5">
                             <input
                               type="number"

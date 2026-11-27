@@ -345,14 +345,15 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
     payoutMin: 100,
     royalty: { rf: 0.4, editorial: 0.3 },
     sizes: [
-      { k: 'S', n: 'Small', px: 800 },
-      { k: 'M', n: 'Medium', px: 1600 },
-      { k: 'L', n: 'Large / Original', px: 0 },
+      { k: 'XS', n: '330px', px: 330 },
+      { k: 'S', n: '960px', px: 960 },
+      { k: 'M', n: '1280px', px: 1280 },
+      { k: 'L', n: 'Full resolution', px: 0 },
     ],
     matrix: {
-      std: { S: 19, M: 29, L: 49 },
-      ext: { S: 79, M: 129, L: 199 },
-      ed: { S: 15, M: 25, L: 39 },
+      std: { XS: 9, S: 19, M: 29, L: 49 },
+      ext: { XS: 39, S: 79, M: 129, L: 199 },
+      ed: { XS: 7, S: 15, M: 25, L: 39 },
     },
     licMeta: {
       std: {

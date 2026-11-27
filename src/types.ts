@@ -3,7 +3,7 @@ export type UserRole = 'buyer' | 'contributor' | 'admin';
 export type AssetLicense = 'rf' | 'editorial';
 export type AssetStatus = 'approved' | 'pending' | 'rejected';
 export type LicenseOptionKey = 'std' | 'ext' | 'ed';
-export type SizeKey = 'S' | 'M' | 'L';
+export type SizeKey = 'XS' | 'S' | 'M' | 'L';
 
 export interface User {
   email: string;

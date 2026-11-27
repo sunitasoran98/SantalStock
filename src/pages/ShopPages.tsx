@@ -50,7 +50,24 @@ export async function downloadFullAsset(asset: Asset, sizeKey: SizeKey, siteConf
         toast(msg || 'Download nahi ho saka. License kharidne ke baad try karein.');
         return;
       }
-      const blob = await res.blob();
+      let blob = await res.blob();
+      // Chosen size smaller than the stored file: resize in the browser before saving.
+      if (S.px) {
+        try {
+          const bmp = await createImageBitmap(blob);
+          if (bmp.width > S.px) {
+            const c = document.createElement('canvas');
+            c.width = S.px;
+            c.height = Math.round((bmp.height * S.px) / bmp.width);
+            c.getContext('2d')?.drawImage(bmp, 0, 0, c.width, c.height);
+            const out = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.92));
+            if (out) blob = out;
+          }
+          bmp.close();
+        } catch {
+          /* keep original file */
+        }
+      }
       const obj = URL.createObjectURL(blob);
       triggerDownload(obj, `SantalStock-${asset.id}-${sizeKey}.jpg`);
       setTimeout(() => URL.revokeObjectURL(obj), 4000);
@@ -146,7 +163,7 @@ export function AssetDetailPage({
   if (!asset) return <div className="wrap py-16 text-center text-[#5c6170]">Asset nahi mila.</div>;
 
   const activeLic = allowed.includes(lic) ? lic : allowed[0];
-  const price = siteConfig.pricing.matrix[activeLic][size];
+  const price = siteConfig.pricing.matrix[activeLic][size] ?? 0;
   const similar = allAssets
     .filter((x) => x.id !== asset.id && x.status === 'approved' && (x.cat === asset.cat || x.kw.some((k) => asset.kw.includes(k))))
     .slice(0, 8);
@@ -360,27 +377,32 @@ export function AssetDetailPage({
               </div>
 
               <b className="block text-sm text-[#011f43] mt-4 mb-2">{tr(lang, 'size')}</b>
-              <div className="space-y-2">
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Download size">
                 {siteConfig.pricing.sizes.map((s) => {
-                  const w = s.px ? Math.min(s.px, asset.w) : asset.w;
-                  const h = Math.round((asset.h * w) / (asset.w || 1));
+                  const on = size === s.k;
                   return (
-                    <label
+                    <button
                       key={s.k}
-                      className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border cursor-pointer ${
-                        size === s.k ? 'border-[#2f3f8f] ring-2 ring-[#2f3f8f]/20 bg-[#f9fbff]' : 'border-[#d9dbe1]'
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setSize(s.k)}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[13px] font-semibold cursor-pointer transition-colors ${
+                        on ? 'bg-[#011f43] border-[#011f43] text-white shadow-sm' : 'bg-white border-[#d9dbe1] text-[#011f43] hover:border-[#011f43]'
                       }`}
                     >
-                      <span className="flex items-center gap-2 text-sm">
-                        <input type="radio" name="size" checked={size === s.k} onChange={() => setSize(s.k)} />
-                        <b>{s.n}</b>
-                        <span className="text-xs text-[#5c6170]">{w}×{h}px</span>
-                      </span>
-                      <span className="font-bold text-sm text-[#011f43] tabular-nums">{money(siteConfig.pricing.matrix[activeLic][s.k])}</span>
-                    </label>
+                      {s.n}
+                      <span className={`tabular-nums text-[12px] ${on ? 'text-white/80' : 'text-[#5c6170]'}`}>{money(siteConfig.pricing.matrix[activeLic][s.k] ?? 0)}</span>
+                    </button>
                   );
                 })}
               </div>
+              {(() => {
+                const s = siteConfig.pricing.sizes.find((x) => x.k === size);
+                const w = s?.px ? Math.min(s.px, asset.w) : asset.w;
+                const h = Math.round((asset.h * w) / (asset.w || 1));
+                return <p className="text-xs text-[#5c6170] mt-2 mb-0">File: <b className="text-[#011f43] tabular-nums">{w}×{h}px</b> · JPEG</p>;
+              })()}
 
               <div className="flex items-center justify-between my-4">
                 <span className="text-sm text-[#5c6170]">{tr(lang, 'price')}</span>

@@ -1148,7 +1148,7 @@ export default function App() {
           <div className="text-center mb-8">
             <h1 className="dm text-4xl sm:text-[42px] text-[#011f43] m-0">Affordable, Minimum Pricing</h1>
             <p className="text-[#5c6170] mt-2">
-              Photos starting at just <b>{money(siteConfig.pricing.matrix.ed.S)}</b> (Editorial) & <b>{money(siteConfig.pricing.matrix.std.S)}</b> (Royalty-Free). All prices +{Math.round(siteConfig.pricing.gst * 100)}% GST.
+              Photos starting at just <b>{money(siteConfig.pricing.matrix.ed.XS ?? siteConfig.pricing.matrix.ed.S)}</b> (Editorial) & <b>{money(siteConfig.pricing.matrix.std.XS ?? siteConfig.pricing.matrix.std.S)}</b> (Royalty-Free). All prices +{Math.round(siteConfig.pricing.gst * 100)}% GST.
             </p>
           </div>
 

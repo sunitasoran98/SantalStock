@@ -622,11 +622,11 @@ export async function handleStaticFallback<T>(
     if (kind === 'cart') {
       const catalog = getCatalog(db, u);
       const valid = (Array.isArray(body.items) ? body.items : [])
-        .map((c: { id: string; lic: 'std' | 'ext' | 'ed'; size: 'S' | 'M' | 'L' }) => {
+        .map((c: { id: string; lic: 'std' | 'ext' | 'ed'; size: 'XS' | 'S' | 'M' | 'L' }) => {
           const a = catalog.find((x) => x.id === c.id);
           return a ? { ...c, price: pricing.matrix[c.lic]?.[c.size] ?? 19, asset: a } : null;
         })
-        .filter(Boolean) as { id: string; lic: 'std' | 'ext' | 'ed'; size: 'S' | 'M' | 'L'; price: number; asset: Asset }[];
+        .filter(Boolean) as { id: string; lic: 'std' | 'ext' | 'ed'; size: 'XS' | 'S' | 'M' | 'L'; price: number; asset: Asset }[];
       if (!valid.length) throw new Error('Cart is empty.');
       const sub = valid.reduce((n, i) => n + i.price, 0);
       const gst = Math.round(sub * pricing.gst);

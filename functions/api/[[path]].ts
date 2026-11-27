@@ -199,6 +199,8 @@ function deepMergeConfig(saved: Partial<SiteConfig> | undefined): SiteConfig {
       ...def.pricing,
       ...(saved.pricing || {}),
       royalty: { ...def.pricing.royalty, ...(saved.pricing?.royalty || {}) },
+      // v28: download sizes are fixed (330 / 960 / 1280 / Full); old saved size lists are ignored.
+      sizes: def.pricing.sizes,
       matrix: {
         std: { ...def.pricing.matrix.std, ...(saved.pricing?.matrix?.std || {}) },
         ext: { ...def.pricing.matrix.ext, ...(saved.pricing?.matrix?.ext || {}) },
@@ -867,7 +869,7 @@ async function handleRequest(context: CfContext): Promise<Response> {
   // Open in browser: /api/email-status  -> shows which email settings this deploy can see (never the values).
   if (method === 'GET' && pathname === '/api/email-status') {
     return json({
-      deployHasCode: 'v27',
+      deployHasCode: 'v28',
       photoStore: env.SANTALSTOCK_R2 ? 'R2' : env.SANTALSTOCK_KV ? 'KV (one key per photo)' : 'none',
       EMAILJS_SERVICE_ID: !!v(env.EMAILJS_SERVICE_ID),
       EMAILJS_TEMPLATE_ID: !!v(env.EMAILJS_TEMPLATE_ID),
@@ -1430,13 +1432,13 @@ async function handleRequest(context: CfContext): Promise<Response> {
     if (kind === 'cart') {
       const catalog = getCatalog(db, u);
       const validItems = (Array.isArray(reqItems) ? reqItems : [])
-        .map((c: { id: string; lic: 'std' | 'ext' | 'ed'; size: 'S' | 'M' | 'L' }) => {
+        .map((c: { id: string; lic: 'std' | 'ext' | 'ed'; size: 'XS' | 'S' | 'M' | 'L' }) => {
           const a = catalog.find((x) => x.id === c.id);
           if (!a) return null;
           const unitPrice = pricing.matrix[c.lic]?.[c.size] ?? 19;
           return { ...c, price: unitPrice, asset: a };
         })
-        .filter(Boolean) as { id: string; lic: 'std' | 'ext' | 'ed'; size: 'S' | 'M' | 'L'; price: number; asset: Asset }[];
+        .filter(Boolean) as { id: string; lic: 'std' | 'ext' | 'ed'; size: 'XS' | 'S' | 'M' | 'L'; price: number; asset: Asset }[];
 
       if (!validItems.length) return json({ error: 'Cart is empty.' }, 400);
 
